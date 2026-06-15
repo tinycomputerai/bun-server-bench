@@ -1,0 +1,209 @@
+id: background-jobs.retry-queue.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: Asynchronous job queue with retries and dead-lettering
+description: >-
+  Build a Bun service with an in-process asynchronous job queue. A background
+  worker processes jobs decoupled from the request, retries failures with a
+  small backoff up to a bounded number of attempts, and moves exhausted jobs to
+  a terminal dead-letter state, all observable through a job status endpoint.
+difficulty:
+  level: 4
+  rationale: >-
+    Requires per-job attempt accounting, an observable state machine, terminal
+    state enforcement so dead-lettered jobs never run again, asynchronous
+    processing decoupled from the HTTP request, and avoiding races when status
+    is read mid-processing.
+  expected_code_size:
+    min_lines: 100
+    max_lines: 350
+  expected_concepts:
+    - background worker
+    - per-job attempt accounting
+    - retry with backoff
+    - dead-lettering
+    - observable state machine
+category: background-jobs
+tags:
+  - background-jobs
+  - bun
+  - job-queue
+  - retries
+  - state-machine
+dataset:
+  split: dev
+  leakage_group: background-jobs.retry-queue
+  trainable: true
+curriculum:
+  skill_atoms:
+    - async-job-processing
+    - attempt-accounting
+    - retry-backoff
+    - terminal-state-enforcement
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Build an in-memory async job queue with bounded retries, backoff, and dead-lettering.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - State is kept in memory; no database or external services.
+    - Jobs must be processed asynchronously by a background worker, not inside the request.
+    - Return JSON for every response.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - Job processing outcomes are deterministic by job type for testing.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not process jobs synchronously inside the POST handler.
+success_criteria:
+  must:
+    - POST /jobs returns 201 with status queued, attempts 0, max_attempts 3.
+    - An ok job reaches succeeded with attempts equal to 1.
+    - A flaky job reaches succeeded with attempts equal to 3.
+    - A fail job reaches dead_letter with attempts equal to 3 and a last_error.
+  must_not:
+    - Process a job synchronously inside the POST request.
+    - Run a job after it has reached a terminal state.
+    - Let attempts exceed max_attempts.
+  edge_cases:
+    - An unknown job type is treated as failing and dead-letters.
+    - dead_letter is terminal and remains unchanged when polled repeatedly.
+    - Invalid JSON returns 400 and a missing type returns 422.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional: {}
+  services: []
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /jobs/nonexistent
+      expected_status: 404
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: POST
+        path: /jobs
+      - method: GET
+        path: /jobs/{id}
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/jobs.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/jobs-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 120
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.6
+    edge_cases: 0.25
+    performance: 0.05
+    security: 0.05
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Validate JSON body shape before using values.
+    - Do not expose stack traces.
+    - Enforce terminal states so dead-lettered jobs never run again.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: In-memory queue with a setTimeout-driven background worker, per-job attempt counting, and terminal-state guards.
+known_failure_modes:
+  - Processing jobs synchronously inside the POST handler so the response is already terminal.
+  - Not tracking per-job attempts, so a flaky job never succeeds or a fail job retries forever.
+  - Failing to enforce terminal states, letting dead-lettered jobs run again and exceed max_attempts.

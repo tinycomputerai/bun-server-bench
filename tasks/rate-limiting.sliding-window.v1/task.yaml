@@ -1,0 +1,205 @@
+id: rate-limiting.sliding-window.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: Sliding window rate limiter per client
+description: >-
+  Build a Bun service that rate-limits GET /resource to five requests per
+  rolling 1000ms window per X-Client-Id, tracking request timestamps so the
+  window slides continuously and emitting correct RateLimit and Retry-After
+  headers.
+difficulty:
+  level: 4
+  rationale: >-
+    Requires a true rolling-window algorithm (per-client timestamp tracking with
+    age-out) rather than a fixed calendar window, plus correct Retry-After math
+    and RateLimit header bookkeeping under burst and partial-decay conditions.
+  expected_code_size:
+    min_lines: 50
+    max_lines: 220
+  expected_concepts:
+    - sliding window rate limiting
+    - per-client in-memory state
+    - timestamp aging
+    - retry-after computation
+    - rate limit headers
+category: rate-limiting
+tags:
+  - rate-limiting
+  - bun
+  - headers
+  - state
+  - sliding-window
+dataset:
+  split: dev
+  leakage_group: rate-limiting.sliding-window
+  trainable: true
+curriculum:
+  skill_atoms:
+    - sliding-window-algorithm
+    - timestamp-aging
+    - retry-after-computation
+    - rate-limit-headers
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Implement GET /resource with a per-client sliding-window limit of five per 1000ms.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - GET /resource requires an X-Client-Id header.
+    - Allow at most five requests per rolling 1000ms window per client.
+    - A rejected request returns HTTP 429 with JSON and a Retry-After header.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - State only needs to live in memory for the process lifetime.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not use a fixed calendar window that resets on a boundary.
+success_criteria:
+  must:
+    - Five requests within a rolling window succeed and the sixth returns 429.
+    - The window slides so burst requests stay blocked until the oldest ages out.
+    - Allowed responses carry X-RateLimit-Limit and X-RateLimit-Remaining headers.
+    - 429 responses carry an integer Retry-After of at least one second.
+  must_not:
+    - Reset the limit on a fixed calendar boundary while older hits are still in window.
+    - Share state across different client ids.
+    - Return plain text or HTML for API responses.
+  edge_cases:
+    - Missing X-Client-Id returns 400 missing_client_id.
+    - After the window fully elapses the client is allowed again.
+    - X-RateLimit-Remaining decrements with each allowed request.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional: {}
+  services: []
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /resource
+      expected_status: 400
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: GET
+        path: /resource
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/limited.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/limited-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 120
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.6
+    edge_cases: 0.25
+    performance: 0.05
+    security: 0.05
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Return JSON for success and error responses.
+    - Keep per-client state isolated by header value.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: Tracks per-client allowed-request timestamps and ages out entries older than the window.
+known_failure_modes:
+  - A fixed calendar window resets on a boundary and wrongly allows a request mid-burst.
+  - Forgetting to age out old timestamps blocks a client forever.
+  - Retry-After computed as zero or non-integer instead of ceil to at least one second.

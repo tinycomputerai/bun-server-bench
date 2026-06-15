@@ -1,0 +1,210 @@
+id: idempotency.payment-capture.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: Idempotent payment capture with request fingerprinting
+description: >-
+  Build a Bun HTTP service that captures payments idempotently using an
+  Idempotency-Key header. Replays of the same key and body return the original
+  response, the same key with a different body conflicts, and a concurrent burst
+  of identical requests must create exactly one payment.
+difficulty:
+  level: 4
+  rationale: >-
+    Requires correct idempotency-key semantics with request fingerprinting,
+    distinguishing replay from key reuse, and a concurrency-safe per-key
+    single-execution guard so simultaneous retries collapse into one capture.
+  expected_code_size:
+    min_lines: 80
+    max_lines: 300
+  expected_concepts:
+    - idempotency keys
+    - request fingerprinting
+    - replay detection
+    - per-key concurrency control
+    - single-flight execution
+category: http-apis
+tags:
+  - http-apis
+  - bun
+  - idempotency
+  - concurrency
+  - payments
+dataset:
+  split: dev
+  leakage_group: idempotency.payment-capture
+  trainable: true
+curriculum:
+  skill_atoms:
+    - idempotency-key-parsing
+    - request-fingerprinting
+    - replay-vs-reuse
+    - per-key-single-flight
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Build an idempotent payment capture API keyed on Idempotency-Key with concurrency-safe single execution.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - Store payments in memory; persistence across restart is not required.
+    - Return JSON for every response.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - State is held in process memory.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not create more than one payment for a single key.
+success_criteria:
+  must:
+    - POST /payments with a new key creates a captured payment and returns 201.
+    - A replay with the same key and body returns the original response with the Idempotency-Replayed header.
+    - The same key with a different body returns 409 idempotency_key_reuse.
+    - A missing Idempotency-Key returns 400 missing_idempotency_key.
+  must_not:
+    - Create two payments with different ids for a single idempotency key.
+    - Treat a same-key different-body request as a successful replay.
+    - Create a payment when the body is invalid.
+  edge_cases:
+    - Invalid amount (<= 0 or non-integer) returns 422.
+    - Missing currency returns 422.
+    - A concurrent burst of identical requests yields exactly one unique payment id.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional: {}
+  services: []
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /healthz
+      expected_status: 200
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: GET
+        path: /healthz
+      - method: POST
+        path: /payments
+      - method: GET
+        path: /payments/{id}
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/payments.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/payments-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 120
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.6
+    edge_cases: 0.25
+    performance: 0.05
+    security: 0.05
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Validate the request body shape before creating a payment.
+    - Do not expose stack traces.
+    - Serialize per-key work so concurrent retries cannot both create a payment.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: In-memory store with per-key fingerprint records and a single-flight in-flight promise map for concurrency safety.
+known_failure_modes:
+  - Creating the payment before checking for an existing key duplicates payments on replay.
+  - Awaiting request.json without a per-key lock lets a concurrent burst create multiple payments.
+  - Treating a same-key different-body request as a replay instead of a 409 conflict.
+  - Validating the body before checking for the Idempotency-Key header returns 422 instead of 400 on missing key.

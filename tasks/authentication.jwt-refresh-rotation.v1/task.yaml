@@ -1,0 +1,212 @@
+id: authentication.jwt-refresh-rotation.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: Refresh-token rotation with reuse detection
+description: >-
+  Build a Bun service that issues short-lived HS256 access tokens with rotating
+  opaque refresh tokens. Each rotation invalidates the presented refresh token,
+  and reusing a rotated-out token revokes the entire token family.
+difficulty:
+  level: 4
+  rationale: >-
+    Requires modeling token families, atomic rotation that consumes the
+    presented token, and reuse detection that revokes a whole family including
+    its currently-valid token, plus HS256 access-token verification.
+  expected_code_size:
+    min_lines: 120
+    max_lines: 350
+  expected_concepts:
+    - access and refresh tokens
+    - refresh rotation
+    - reuse detection
+    - token family revocation
+    - hmac-sha256 access tokens
+category: authentication
+tags:
+  - authentication
+  - bun
+  - jwt
+  - refresh-token
+  - rotation
+dataset:
+  split: dev
+  leakage_group: authentication.jwt-refresh-rotation
+  trainable: true
+curriculum:
+  skill_atoms:
+    - refresh-rotation
+    - reuse-detection
+    - family-revocation
+    - access-token-verify
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Issue rotating refresh tokens with reuse detection and family revocation.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - Sign access tokens with HS256 using the secret bun-bench-secret.
+    - Refresh tokens are opaque random strings kept in memory.
+    - Return JSON for every response.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - node:crypto is available; no JWT or session library is required.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not accept a refresh token more than once.
+success_criteria:
+  must:
+    - POST /login returns an access_token and refresh_token for valid credentials.
+    - POST /refresh rotates the pair and consumes the presented refresh token.
+    - Reusing a rotated-out refresh token returns 401 token_reuse_detected.
+    - The access token from login authorizes GET /protected with sub alice.
+  must_not:
+    - Allow a consumed refresh token to be used again.
+    - Keep a family usable after reuse is detected.
+    - Issue an access token to wrong credentials.
+  edge_cases:
+    - An unknown refresh token returns 401 invalid_refresh.
+    - After family revocation the currently-valid refresh token also returns 401.
+    - An invalid or missing access token returns 401 from GET /protected.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional: {}
+  services: []
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /healthz
+      expected_status: 200
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: POST
+        path: /login
+      - method: POST
+        path: /refresh
+      - method: GET
+        path: /protected
+      - method: GET
+        path: /healthz
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/auth.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/auth-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 120
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.6
+    edge_cases: 0.25
+    performance: 0.05
+    security: 0.05
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Generate refresh tokens with a cryptographically secure random source.
+    - Revoke the entire token family on refresh-token reuse.
+    - Do not expose stack traces.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: In-memory token families with rotation, reuse detection, and family revocation.
+known_failure_modes:
+  - Letting a consumed refresh token continue to work (no rotation invalidation).
+  - Failing the presented token on reuse without revoking the rest of the family.
+  - Leaving the currently-valid refresh token usable after reuse is detected.
+  - Issuing access tokens that GET /protected cannot verify.

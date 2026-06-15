@@ -1,0 +1,212 @@
+id: crud-systems.etag-concurrency.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: Config store with strong ETag optimistic concurrency
+description: >-
+  Build a Bun service that stores configuration entries in memory and protects
+  updates with optimistic concurrency control using strong content-hash ETags
+  and RFC 7232 If-Match conditional requests, returning 412 on a stale
+  precondition and supporting the wildcard.
+difficulty:
+  level: 4
+  rationale: >-
+    Requires a deterministic canonical serialization hashed into a strong ETag,
+    correct RFC 7232 conditional-request semantics (412 not 409, 428 when the
+    precondition is missing, wildcard match), and a compare-and-set on the
+    content hash that prevents concurrent lost updates.
+  expected_code_size:
+    min_lines: 90
+    max_lines: 350
+  expected_concepts:
+    - content-addressed etags
+    - canonical serialization
+    - conditional requests
+    - precondition failure semantics
+    - compare-and-set
+category: crud-systems
+tags:
+  - crud-systems
+  - bun
+  - etag
+  - optimistic-concurrency
+  - conditional-requests
+dataset:
+  split: dev
+  leakage_group: crud-systems.etag-concurrency
+  trainable: true
+curriculum:
+  skill_atoms:
+    - content-hash-etag
+    - if-match-parsing
+    - precondition-failed-detection
+    - wildcard-precondition
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Build an in-memory config store with strong content-hash ETag If-Match concurrency.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - The ETag must be a deterministic content hash of the entry's key and value.
+    - Return JSON for every response.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - In-memory storage is acceptable; no database is required.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not use a counter or random value as the ETag instead of a content hash.
+success_criteria:
+  must:
+    - POST /configs creates an entry with a quoted hex sha256 ETag header.
+    - GET returns the same deterministic ETag for unchanged content.
+    - PUT with a matching If-Match applies the update and returns a new ETag.
+    - PUT with a stale or mismatched If-Match returns 412 precondition_failed.
+  must_not:
+    - Allow two concurrent updates on the same original ETag to both succeed.
+    - Apply an update when If-Match is absent.
+    - Use a non-deterministic or version-counter value as the ETag.
+  edge_cases:
+    - Missing If-Match returns 428 precondition_required.
+    - If-Match wildcard matches any existing entry.
+    - If-Match comparison ignores surrounding quotes and an optional W/ prefix.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional: {}
+  services: []
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /configs/x
+      expected_status: 404
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: POST
+        path: /configs
+      - method: GET
+        path: /configs/{id}
+      - method: PUT
+        path: /configs/{id}
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/configs.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/configs-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 120
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.6
+    edge_cases: 0.25
+    performance: 0.05
+    security: 0.05
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Validate JSON body shape before using values.
+    - Do not expose stack traces.
+    - Perform the ETag check and the update without an interleaving await.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: In-memory store using a sha256 content hash as a strong ETag with compare-and-set updates.
+known_failure_modes:
+  - Using a version counter or random token as the ETag instead of a content hash of the contents.
+  - Returning 409 instead of 412 for a stale precondition.
+  - Treating missing If-Match as an unconditional update permits lost updates.
+  - Failing to treat If-Match * as a wildcard that matches any existing entry.
+  - Performing an await between the ETag check and the mutation, letting two writers both commit.

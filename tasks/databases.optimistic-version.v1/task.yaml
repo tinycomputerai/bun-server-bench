@@ -1,0 +1,214 @@
+id: databases.optimistic-version.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: Versioned document store with optimistic concurrency
+description: >-
+  Build a Bun service that persists documents in SQLite and protects updates
+  with optimistic concurrency control using version numbers and If-Match
+  conditional requests.
+difficulty:
+  level: 4
+  rationale: >-
+    Requires durable SQLite persistence, transactional read-modify-write to
+    prevent lost updates, correct RFC 7232 conditional-request semantics, and
+    monotonic versioning that survives restarts.
+  expected_code_size:
+    min_lines: 120
+    max_lines: 400
+  expected_concepts:
+    - sqlite persistence
+    - transactional updates
+    - optimistic concurrency
+    - conditional requests
+    - monotonic versioning
+category: databases
+tags:
+  - databases
+  - bun
+  - sqlite
+  - optimistic-concurrency
+  - conditional-requests
+dataset:
+  split: dev
+  leakage_group: databases.optimistic-version
+  trainable: true
+curriculum:
+  skill_atoms:
+    - sqlite-schema
+    - sqlite-transaction
+    - if-match-parsing
+    - version-conflict-detection
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Build a SQLite-backed document store with If-Match optimistic concurrency.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - Persist documents in SQLite at DATABASE_PATH, defaulting to ./data/app.db.
+    - Data must survive a process restart.
+    - Return JSON for every response except the 204 delete.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - bun:sqlite is available; no external database server is required.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not store state only in memory.
+success_criteria:
+  must:
+    - POST /docs creates a document at version 1 with an ETag header.
+    - PUT with a matching If-Match increments the version by exactly one.
+    - PUT with a stale If-Match returns 409 with the current version.
+    - Documents and versions survive a process restart.
+  must_not:
+    - Allow two concurrent updates on the same version to both succeed.
+    - Reuse or skip version numbers.
+    - Apply an update when If-Match is absent.
+  edge_cases:
+    - Missing If-Match returns 428 precondition_required.
+    - Non-numeric If-Match returns 400.
+    - DELETE without If-Match returns 428 and a matching DELETE returns 204.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional:
+      DATABASE_PATH: ./data/app.db
+  services:
+    - name: sqlite
+      mode: file
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /docs/0
+      expected_status: 404
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: POST
+        path: /docs
+      - method: GET
+        path: /docs/{id}
+      - method: PUT
+        path: /docs/{id}
+      - method: DELETE
+        path: /docs/{id}
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/docs.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/docs-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 120
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.6
+    edge_cases: 0.25
+    performance: 0.05
+    security: 0.05
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Validate JSON body shape before using values.
+    - Do not expose stack traces.
+    - Use a transaction so concurrent writers cannot both commit.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: SQLite-backed store using a transaction for compare-and-set version updates.
+known_failure_modes:
+  - In-memory storage loses documents and versions across restart.
+  - Read-modify-write without a transaction lets two writers both bump the version.
+  - Treating missing If-Match as an unconditional update permits lost updates.

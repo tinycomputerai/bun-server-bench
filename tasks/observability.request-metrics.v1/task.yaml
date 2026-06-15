@@ -1,0 +1,213 @@
+id: observability.request-metrics.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: HTTP request metrics with bounded label cardinality
+description: >-
+  Build a Bun service that instruments every handled request with a
+  Prometheus-style counter keyed by (method, route template, status) and global
+  request-duration metrics, controls label cardinality via route templating,
+  excludes the metrics endpoint from its own counters, and propagates an
+  X-Request-Id on every response.
+difficulty:
+  level: 4
+  rationale: >-
+    Requires correct route templating to bound label cardinality (the classic
+    high-cardinality bug of labeling by raw id), excluding the metrics endpoint
+    from its own counters, echo-vs-generate request-id logic, and emitting valid
+    parseable Prometheus exposition text.
+  expected_code_size:
+    min_lines: 90
+    max_lines: 300
+  expected_concepts:
+    - metrics instrumentation
+    - route templating
+    - label cardinality control
+    - prometheus exposition format
+    - request-id propagation
+category: observability
+tags:
+  - observability
+  - bun
+  - metrics
+  - prometheus
+  - request-id
+dataset:
+  split: dev
+  leakage_group: observability.request-metrics
+  trainable: true
+curriculum:
+  skill_atoms:
+    - route-templating
+    - counter-aggregation
+    - prometheus-rendering
+    - request-id-propagation
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Build an HTTP service with route-templated request metrics and X-Request-Id propagation.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - Metrics state is kept in memory; no persistence is required.
+    - Counters must be keyed by route template, never the raw path.
+    - GET /metrics must not be recorded in any metric.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - crypto.randomUUID is available for generating request ids.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not label counters by raw path segments.
+success_criteria:
+  must:
+    - Every response includes an X-Request-Id header.
+    - GET /metrics returns 200 text/plain Prometheus exposition.
+    - http_requests_total is keyed by (method, route template, status).
+    - Duration count and sum increase with each handled request.
+  must_not:
+    - Record GET /metrics in http_requests_total or the duration metrics.
+    - Create a separate counter series per raw id value.
+    - Drop the X-Request-Id header from any response.
+  edge_cases:
+    - GET /items/1 and GET /items/2 share a single route="/items/:id" series.
+    - A 500 from GET /work?fail=1 is counted separately from 200s.
+    - An empty or whitespace X-Request-Id is treated as absent and generated.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional: {}
+  services: []
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /metrics
+      expected_status: 200
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: GET
+        path: /items/{id}
+      - method: GET
+        path: /work
+      - method: GET
+        path: /metrics
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/metrics.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/metrics-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 120
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.6
+    edge_cases: 0.25
+    performance: 0.05
+    security: 0.05
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Bound label cardinality by templating routes, never labeling by raw id.
+    - Do not expose stack traces.
+    - Emit valid, parseable Prometheus exposition text.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: In-memory counter map keyed by (method, route template, status) plus global duration aggregates.
+known_failure_modes:
+  - Labeling counters by the raw path explodes cardinality (one series per id).
+  - Recording GET /metrics in its own counters inflates totals.
+  - Treating an empty/whitespace X-Request-Id as valid instead of generating one.
+  - Emitting malformed exposition (wrong label order, missing space) that tests cannot parse.

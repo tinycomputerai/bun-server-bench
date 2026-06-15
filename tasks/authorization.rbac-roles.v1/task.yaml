@@ -1,0 +1,213 @@
+id: authorization.rbac-roles.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: Role-based access control with resource ownership
+description: >-
+  Build a Bun service that guards a document store with role-based access
+  control, per-resource ownership, and an admin override, returning the correct
+  401-vs-403 distinction for unauthenticated versus forbidden requests.
+difficulty:
+  level: 4
+  rationale: >-
+    Requires combining role permissions with per-resource ownership checks and
+    an admin override, plus an exact 401 (unauthenticated) versus 403
+    (authenticated but forbidden) distinction across four endpoints.
+  expected_code_size:
+    min_lines: 90
+    max_lines: 320
+  expected_concepts:
+    - bearer token authentication
+    - role-based authorization
+    - resource ownership
+    - admin override
+    - 401 vs 403 distinction
+category: authorization
+tags:
+  - authorization
+  - bun
+  - rbac
+  - ownership
+  - access-control
+dataset:
+  split: dev
+  leakage_group: authorization.rbac-roles
+  trainable: true
+curriculum:
+  skill_atoms:
+    - bearer-token-parsing
+    - role-permission-check
+    - ownership-check
+    - admin-override
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Build a document store guarded by role-based access control with ownership and an admin override.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - Authenticate every request with an Authorization Bearer token.
+    - Keep documents in memory for the process lifetime.
+    - Return JSON for every response except the 204 delete.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - The set of valid tokens, users, and roles is fixed and given in the prompt.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not grant access without checking the role and ownership rules.
+success_criteria:
+  must:
+    - Missing or unknown token returns 401 unauthorized.
+    - Admin and editor can create documents; viewer cannot.
+    - Editor can update documents they own.
+    - Admin can update or delete any document.
+  must_not:
+    - Allow a viewer to create, update, or delete.
+    - Allow an editor to update a document owned by another user.
+    - Allow a non-admin to delete a document.
+    - Return 403 for an unknown or missing token.
+  edge_cases:
+    - An editor updating another editor's document returns 403.
+    - Editor and viewer deleting any document returns 403.
+    - An unknown token returns 401, distinct from a forbidden 403.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional: {}
+  services: []
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /documents/0
+      expected_status: 401
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: POST
+        path: /documents
+      - method: GET
+        path: /documents/{id}
+      - method: PUT
+        path: /documents/{id}
+      - method: DELETE
+        path: /documents/{id}
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/rbac.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/rbac-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 120
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.55
+    edge_cases: 0.3
+    performance: 0.05
+    security: 0.05
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Validate JSON body shape before using values.
+    - Do not expose stack traces.
+    - Authenticate before applying authorization rules.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: In-memory store with a token table mapping to user and role, role-permission checks, ownership checks, and an admin override.
+known_failure_modes:
+  - Returning 403 instead of 401 for an unknown or missing token (or vice versa).
+  - Checking the role but ignoring per-resource ownership, letting one editor edit another's document.
+  - Forgetting the admin override so an admin cannot edit a document they do not own.
+  - Allowing non-admin roles to delete.

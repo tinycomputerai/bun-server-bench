@@ -1,0 +1,209 @@
+id: authorization.scoped-tokens.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: Scope-based authorization with challenge headers
+description: >-
+  Build a Bun service that authorizes file operations using OAuth-style bearer
+  token scopes, returning the correct 401-vs-403 distinction and an RFC 6750
+  insufficient_scope WWW-Authenticate challenge header naming the required scope.
+difficulty:
+  level: 3
+  rationale: >-
+    Requires per-endpoint scope enforcement (not a blanket valid-token check),
+    an exact 401 versus 403 distinction, and a correctly formed RFC 6750
+    WWW-Authenticate challenge header naming the scope each endpoint requires.
+  expected_code_size:
+    min_lines: 70
+    max_lines: 260
+  expected_concepts:
+    - bearer token authentication
+    - scope-based authorization
+    - per-endpoint scope enforcement
+    - 401 vs 403 distinction
+    - www-authenticate challenge header
+category: authorization
+tags:
+  - authorization
+  - bun
+  - oauth-scopes
+  - www-authenticate
+  - access-control
+dataset:
+  split: dev
+  leakage_group: authorization.scoped-tokens
+  trainable: true
+curriculum:
+  skill_atoms:
+    - bearer-token-parsing
+    - scope-check
+    - per-endpoint-scope
+    - www-authenticate-challenge
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Build a file API authorized by OAuth-style token scopes with an insufficient_scope challenge header.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - Authenticate every request with an Authorization Bearer token.
+    - Keep files in memory for the process lifetime.
+    - Return JSON for every response except the 204 delete.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - The set of valid tokens and their scopes is fixed and given in the prompt.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not authorize based only on token validity; check the required scope.
+success_criteria:
+  must:
+    - Missing or unknown token returns 401 unauthorized.
+    - GET requires files:read, POST requires files:write, DELETE requires files:delete.
+    - A token missing the required scope returns 403 insufficient_scope.
+    - The 403 response includes a WWW-Authenticate header naming the required scope.
+  must_not:
+    - Authorize an endpoint solely because the token is valid.
+    - Return 403 for an unknown or missing token.
+    - Omit the WWW-Authenticate header on an insufficient-scope response.
+  edge_cases:
+    - A read-only token POSTing returns 403 with WWW-Authenticate naming files:write.
+    - A write token DELETEing returns 403 with WWW-Authenticate naming files:delete.
+    - The admin token can read, write, and delete.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional: {}
+  services: []
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /files
+      expected_status: 401
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: GET
+        path: /files
+      - method: POST
+        path: /files
+      - method: DELETE
+        path: /files/{id}
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/scopes.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/scopes-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 120
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.55
+    edge_cases: 0.3
+    performance: 0.05
+    security: 0.05
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Validate JSON body shape before using values.
+    - Do not expose stack traces.
+    - Enforce the required scope per endpoint, not blanket token validity.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: In-memory store with a token-to-scopes table and a per-endpoint required-scope check that emits an RFC 6750 WWW-Authenticate challenge.
+known_failure_modes:
+  - Authorizing any valid token regardless of the scope the endpoint requires.
+  - Returning 403 instead of 401 for an unknown or missing token (or vice versa).
+  - Omitting the WWW-Authenticate header or naming the wrong scope in it.

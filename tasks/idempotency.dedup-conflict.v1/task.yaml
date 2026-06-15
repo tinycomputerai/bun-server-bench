@@ -1,0 +1,210 @@
+id: idempotency.dedup-conflict.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: Idempotent order creation versus business deduplication
+description: >-
+  Build a Bun HTTP service that creates orders and distinguishes two kinds of
+  conflict: an idempotency-key replay or reuse versus a business-level duplicate
+  reference. Same key plus same body replays, same key plus different body is key
+  reuse, and a different key with an existing reference is a duplicate reference.
+difficulty:
+  level: 3
+  rationale: >-
+    Requires modeling two independent conflict mechanisms over the same create
+    endpoint, returning the correct distinct 409 reason for each, while keeping
+    idempotency-key replay precedence ahead of business uniqueness.
+  expected_code_size:
+    min_lines: 70
+    max_lines: 250
+  expected_concepts:
+    - idempotency keys
+    - request fingerprinting
+    - replay detection
+    - business uniqueness index
+    - conflict disambiguation
+category: crud-systems
+tags:
+  - crud-systems
+  - bun
+  - idempotency
+  - deduplication
+  - conflict-handling
+dataset:
+  split: dev
+  leakage_group: idempotency.dedup-conflict
+  trainable: true
+curriculum:
+  skill_atoms:
+    - idempotency-key-parsing
+    - request-fingerprinting
+    - replay-vs-reuse
+    - business-uniqueness-index
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Build an order-create API that distinguishes idempotency-key replay/reuse from a duplicate business reference.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - Store orders in memory; persistence across restart is not required.
+    - Return JSON for every response.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - State is held in process memory.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not conflate the two distinct 409 conflict reasons.
+success_criteria:
+  must:
+    - POST /orders with a new key and unused reference creates an order and returns 201.
+    - A replay with the same key and body returns the original response with the Idempotency-Replayed header.
+    - The same key with a different body returns 409 idempotency_key_reuse.
+    - A different key reusing an existing reference returns 409 duplicate_reference.
+  must_not:
+    - Return duplicate_reference when the same key is retried with the same body.
+    - Return idempotency_key_reuse when a fresh key collides with an existing reference.
+    - Create a second order when a conflict is returned.
+  edge_cases:
+    - Missing Idempotency-Key returns 400 missing_idempotency_key.
+    - Invalid qty (<= 0 or non-integer) returns 422.
+    - Missing reference returns 422.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional: {}
+  services: []
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /healthz
+      expected_status: 200
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: GET
+        path: /healthz
+      - method: POST
+        path: /orders
+      - method: GET
+        path: /orders/{id}
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/orders.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/orders-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 120
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.6
+    edge_cases: 0.25
+    performance: 0.05
+    security: 0.05
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Validate the request body shape before creating an order.
+    - Do not expose stack traces.
+    - Keep idempotency-key state and reference uniqueness as separate indexes.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: In-memory store with a per-key fingerprint index and a separate reference uniqueness index; the key check precedes the reference check.
+known_failure_modes:
+  - Using a single conflict path returns the wrong 409 reason for one of the two cases.
+  - Checking reference uniqueness before the idempotency key turns a valid replay into a duplicate_reference error.
+  - Treating a same-key different-body request as a replay instead of a 409 key reuse.
+  - Validating the body before checking for the Idempotency-Key header returns 422 instead of 400 on missing key.

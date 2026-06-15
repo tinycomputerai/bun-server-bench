@@ -1,0 +1,210 @@
+id: pagination.keyset-feed.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: Keyset-paginated event feed
+description: >-
+  Build a Bun service that serves an in-memory event feed newest-first using
+  keyset (cursor) pagination with opaque tokens, correct limit clamping, and
+  ordering that stays stable when new events are inserted mid-pagination.
+difficulty:
+  level: 4
+  rationale: >-
+    Requires opaque cursor encode/decode with rejection of forged tokens,
+    strict limit validation and clamping, descending keyset paging with a
+    correct next_cursor terminator, and stability of older pages under
+    concurrent inserts of higher-id events.
+  expected_code_size:
+    min_lines: 80
+    max_lines: 300
+  expected_concepts:
+    - keyset pagination
+    - opaque cursor encoding
+    - stable ordering
+    - input validation
+    - limit clamping
+category: http-apis
+tags:
+  - http-apis
+  - bun
+  - pagination
+  - keyset
+  - cursor
+dataset:
+  split: dev
+  leakage_group: pagination.keyset-feed
+  trainable: true
+curriculum:
+  skill_atoms:
+    - cursor-encode-decode
+    - keyset-query
+    - limit-validation
+    - stable-ordering
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Build an in-memory event feed with newest-first keyset cursor pagination.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - Storage is in-memory; no persistence is required.
+    - Cursors must be opaque tokens that round-trip through the service.
+    - Return JSON for every response.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - No external database is required.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not expose the raw boundary id as the cursor without encoding.
+success_criteria:
+  must:
+    - POST /events assigns monotonic ids starting at 1 and returns created_at.
+    - GET /events returns items ordered by id descending (newest first).
+    - A cursor returns only events with id strictly less than the decoded id.
+    - next_cursor is null when no older items remain.
+  must_not:
+    - Skip or duplicate an older item on a later page when new events are inserted.
+    - Accept a forged or malformed cursor.
+    - Return more than 100 items for a clamped limit.
+  edge_cases:
+    - limit greater than 100 is clamped to 100.
+    - limit <= 0 or non-integer returns 400 invalid_limit.
+    - A garbage cursor returns 400 invalid_cursor.
+    - An exact page boundary yields a next_cursor whose next page is empty.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional: {}
+  services: []
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /events
+      expected_status: 200
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: POST
+        path: /events
+      - method: GET
+        path: /events
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/feed.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/feed-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 120
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.6
+    edge_cases: 0.25
+    performance: 0.05
+    security: 0.05
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Validate JSON body shape before using values.
+    - Do not expose stack traces.
+    - Reject forged or malformed cursors with a stable 400.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: In-memory feed paged by descending id with base64url-encoded boundary cursors.
+known_failure_modes:
+  - Using offset/limit instead of keyset, so inserts shift older pages and skip items.
+  - Emitting a non-null next_cursor on the final page or omitting it at an exact boundary.
+  - Treating limit as a string or skipping the >100 clamp and the <=0 rejection.
+  - Accepting any decodable cursor without verifying it encodes a valid integer id.

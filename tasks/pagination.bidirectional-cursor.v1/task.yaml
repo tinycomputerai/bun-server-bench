@@ -1,0 +1,213 @@
+id: pagination.bidirectional-cursor.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: Bidirectional cursor pagination
+description: >-
+  Build a Bun service that serves an in-memory item list with forward and
+  backward cursor pagination, always returning items in ascending id order with
+  correct Relay-style page_info (has_next, has_prev, start_cursor, end_cursor).
+difficulty:
+  level: 4
+  rationale: >-
+    Requires opaque cursor encode/decode, forward (after) and backward (before)
+    slicing where the backward slice is taken from the high end yet returned
+    ascending, has_next/has_prev computed by peeking one extra row, mutual
+    exclusion of after/before, and strict limit validation.
+  expected_code_size:
+    min_lines: 90
+    max_lines: 320
+  expected_concepts:
+    - bidirectional pagination
+    - opaque cursor encoding
+    - page-info computation
+    - off-by-one boundary handling
+    - input validation
+category: http-apis
+tags:
+  - http-apis
+  - bun
+  - pagination
+  - cursor
+  - bidirectional
+dataset:
+  split: dev
+  leakage_group: pagination.bidirectional-cursor
+  trainable: true
+curriculum:
+  skill_atoms:
+    - cursor-encode-decode
+    - forward-backward-slicing
+    - page-info-peeking
+    - limit-validation
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Build an in-memory item list with forward/backward cursor pagination and page_info.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - Storage is in-memory; no persistence is required.
+    - Cursors must be opaque tokens that round-trip through the service.
+    - Items are always returned in ascending id order.
+    - Return JSON for every response.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - No external database is required.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not expose the raw boundary id as the cursor without encoding.
+success_criteria:
+  must:
+    - POST /items assigns monotonic ids starting at 1.
+    - GET /items returns items ascending by id in every mode.
+    - after returns items with id greater than the decoded cursor.
+    - before returns the highest-id slice below the cursor, still ascending.
+    - has_next and has_prev reflect items beyond each returned edge.
+  must_not:
+    - Accept both after and before in the same request.
+    - Accept a forged or malformed cursor.
+    - Return a backward (before) page in descending order.
+  edge_cases:
+    - has_prev is false on the first forward page; has_next is false on the last page.
+    - has_next is correct exactly at a boundary (no off-by-one).
+    - Passing both after and before returns 400 invalid_cursor_combination.
+    - A garbage cursor returns 400 invalid_cursor.
+    - limit <= 0 or non-integer returns 400 invalid_limit; limit > 100 is clamped.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional: {}
+  services: []
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /items
+      expected_status: 200
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: POST
+        path: /items
+      - method: GET
+        path: /items
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/items.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/items-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 120
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.6
+    edge_cases: 0.25
+    performance: 0.05
+    security: 0.05
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Validate JSON body shape before using values.
+    - Do not expose stack traces.
+    - Reject forged or malformed cursors with a stable 400.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: In-memory list paged forward/backward by id with base64url cursors and peeked page_info.
+known_failure_modes:
+  - Returning a before-page in descending order instead of re-sorting ascending.
+  - Taking the lowest-id slice for before instead of the highest-id slice below the cursor.
+  - Computing has_next/has_prev from page fullness instead of peeking one extra row, causing off-by-one.
+  - Allowing both after and before, or accepting a forged cursor.

@@ -1,0 +1,211 @@
+id: websockets.seqnum-resume.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: Sequenced WebSocket delivery with resumable catch-up
+description: >-
+  Build a Bun service that publishes messages over HTTP and delivers them over
+  WebSocket, tagging each with a per-channel monotonically increasing sequence
+  number and supporting resume so reconnecting subscribers receive exactly the
+  missed messages in order with no gaps or duplicates.
+difficulty:
+  level: 4
+  rationale: >-
+    Requires per-channel monotonic sequencing, a replay buffer, correct
+    last_seq catch-up that is gap-free and duplicate-free across disconnect and
+    reconnect, ordered delivery, and strict channel isolation.
+  expected_code_size:
+    min_lines: 90
+    max_lines: 320
+  expected_concepts:
+    - websocket server
+    - monotonic sequencing
+    - replay buffer
+    - resumable catch-up
+    - channel isolation
+category: websockets
+tags:
+  - websockets
+  - bun
+  - sequencing
+  - resume
+  - channel-isolation
+dataset:
+  split: dev
+  leakage_group: websockets.seqnum-resume
+  trainable: true
+curriculum:
+  skill_atoms:
+    - websocket-upgrade
+    - monotonic-sequence
+    - message-buffer
+    - resume-replay
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Build a WebSocket pub/sub with per-channel sequence numbers and resumable catch-up replay.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - Use Bun's native WebSocket server via Bun.serve.
+    - Sequence numbers are per channel, start at 1, and increase by exactly one.
+    - Channels must be fully isolated from one another.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - State may be kept in memory; no persistence is required.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not deliver buffered messages out of order or with gaps.
+success_criteria:
+  must:
+    - POST /publish assigns the next per-channel seq starting at 1 and returns it.
+    - Live subscribers receive published messages with strictly increasing seq.
+    - Reconnecting with last_seq replays exactly the messages with greater seq, in order.
+    - last_seq=0 on a channel with a buffer replays all buffered messages in order.
+  must_not:
+    - Replay a message a subscriber already acknowledged via last_seq.
+    - Skip or reuse a sequence number.
+    - Deliver one channel's messages to a subscriber of another channel.
+  edge_cases:
+    - Reconnect after a gap delivers only the missed messages, in order.
+    - last_seq beyond the buffer replays nothing and then delivers live messages.
+    - Connecting without a channel does not upgrade and returns 400.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional: {}
+  services: []
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /healthz
+      expected_status: 200
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: GET
+        path: /healthz
+      - method: POST
+        path: /publish
+      - method: GET
+        path: /ws
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/seqnum.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/seqnum-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 120
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.6
+    edge_cases: 0.25
+    performance: 0.05
+    security: 0.05
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Validate the JSON body shape before using values.
+    - Do not expose stack traces.
+    - Ignore unexpected WebSocket input instead of crashing.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: Per-channel monotonic counter and append-only buffer; on connect replay seq>last_seq synchronously then live fan-out.
+known_failure_modes:
+  - Sharing one global sequence counter across channels breaks per-channel sequencing.
+  - Replaying from index instead of by seq > last_seq causes duplicates or gaps on resume.
+  - Registering the subscriber after replay drops messages published during catch-up.
+  - Broadcasting to all subscribers regardless of channel breaks isolation.

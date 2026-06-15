@@ -1,0 +1,215 @@
+id: file-uploads.multipart-checksum.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: Secure multipart upload with integrity checksum
+description: >-
+  Build a Bun service that accepts multipart/form-data uploads, enforces a size
+  limit and a content-type allowlist, sanitizes filenames to defeat path
+  traversal, and computes a lowercase hex SHA-256 integrity digest with an
+  optional client-supplied checksum verification.
+difficulty:
+  level: 4
+  rationale: >-
+    Requires correct multipart parsing via the FormData API, strict size and
+    content-type enforcement, robust basename sanitization that defeats path
+    traversal, and a SHA-256 digest matching a standard independent
+    implementation with optional checksum verification.
+  expected_code_size:
+    min_lines: 80
+    max_lines: 300
+  expected_concepts:
+    - multipart parsing
+    - size and type enforcement
+    - filename sanitization
+    - sha256 integrity
+    - path-traversal defense
+category: file-uploads
+tags:
+  - file-uploads
+  - bun
+  - multipart
+  - sha256
+  - security
+dataset:
+  split: dev
+  leakage_group: file-uploads.multipart-checksum
+  trainable: true
+curriculum:
+  skill_atoms:
+    - multipart-formdata-parsing
+    - upload-size-limit
+    - content-type-allowlist
+    - filename-sanitization
+    - sha256-digest
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Build a multipart upload service with size/type limits, safe filenames, and sha256 integrity.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - Parse uploads with the FormData web API from the multipart body.
+    - Enforce a 1 MiB size limit and an image/png, image/jpeg, text/plain allowlist.
+    - Store the sanitized basename only; never keep directory or traversal segments.
+    - Return JSON for every response.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - Clients let fetch set the multipart boundary; do not require a manual content-type.
+    - Uploads may be kept in memory; durable storage is not required.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not trust the client-supplied filename without sanitization.
+success_criteria:
+  must:
+    - A valid upload returns 201 with id, filename, size, sha256, and content_type.
+    - The sha256 is the lowercase hex digest of the raw file bytes.
+    - A filename containing path traversal is stored as its basename only.
+    - GET /uploads/:id/checksum returns the same sha256 for a stored upload.
+  must_not:
+    - Store a file whose X-Expected-Sha256 header does not match the digest.
+    - Accept a file larger than 1 MiB or with a disallowed content type.
+    - Persist directory components or ".." segments in the stored filename.
+  edge_cases:
+    - Missing file field returns 400 missing_file.
+    - Oversize file returns 413 too_large.
+    - Disallowed content type returns 415 unsupported_type.
+    - X-Expected-Sha256 mismatch returns 422 checksum_mismatch.
+    - Unknown id on the checksum endpoint returns 404.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional: {}
+  services: []
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /uploads/x/checksum
+      expected_status: 404
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: POST
+        path: /uploads
+      - method: GET
+        path: /uploads/{id}/checksum
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/uploads.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/uploads-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 120
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.55
+    edge_cases: 0.25
+    performance: 0.05
+    security: 0.1
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Sanitize the client-supplied filename to a basename before use.
+    - Enforce the size limit and content-type allowlist before storing.
+    - Do not expose stack traces.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: In-memory store using node:crypto SHA-256 and basename-only filename sanitization.
+known_failure_modes:
+  - Naive basename via split on "/" only keeps a Windows "\\" path or a ".." segment.
+  - Uppercase or non-standard hex digest fails the independent sha256 comparison.
+  - Checking the content type before the size limit (or vice versa) yields the wrong status.
+  - Storing the file before verifying X-Expected-Sha256 leaks a mismatched upload.
