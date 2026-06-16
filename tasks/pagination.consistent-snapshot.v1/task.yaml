@@ -1,0 +1,211 @@
+id: pagination.consistent-snapshot.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: Consistent snapshot cursor pagination under mutation
+description: >-
+  Build a Bun service that paginates items by (updated_at, id) using snapshot-
+  bound cursors so concurrent creates, updates, and deletes do not cause duplicates,
+  skips, or invalid cursors during traversal.
+difficulty:
+  level: 5
+  rationale: >-
+    Requires snapshot isolation over a mutable sort key, stable opaque cursors
+    bound to snapshot id, and correct behavior when items move or are deleted
+    mid-pagination.
+  expected_code_size:
+    min_lines: 100
+    max_lines: 350
+  expected_concepts:
+    - snapshot pagination
+    - mutable sort key
+    - opaque cursors
+    - tombstone cursors
+    - keyset ordering
+category: http-apis
+tags:
+  - http-apis
+  - bun
+  - pagination
+  - snapshot
+  - cursor
+dataset:
+  split: dev
+  leakage_group: pagination.consistent-snapshot
+  trainable: true
+curriculum:
+  skill_atoms:
+    - snapshot-pagination
+    - mutable-sort-key
+    - cursor-binding
+    - mutation-during-traverse
+    - keyset-ordering
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Paginate items with snapshot-bound cursors under live mutation.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - Sort by (updated_at, id) ascending within a snapshot.
+    - Return JSON for every response.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - State is held in process memory.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not use offset pagination.
+success_criteria:
+  must:
+    - POST /items creates items with updated_at.
+    - GET /items returns snapshot, items, and next_cursor.
+    - Pages within a snapshot do not overlap item ids.
+  must_not:
+    - Duplicate an item across pages when its live updated_at moves forward.
+    - Include post-snapshot inserts in the same snapshot pages.
+    - Crash when a cursor anchor item is deleted live.
+  edge_cases:
+    - Cursors from a different snapshot are rejected.
+    - Malformed cursors return 400.
+    - PATCH bumps updated_at without affecting an open snapshot page sequence.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional: {}
+  services: []
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /healthz
+      expected_status: 200
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: GET
+        path: /healthz
+      - method: POST
+        path: /items
+      - method: PATCH
+        path: /items/{id}
+      - method: DELETE
+        path: /items/{id}
+      - method: GET
+        path: /items
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/items.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/items-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 120
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.6
+    edge_cases: 0.25
+    performance: 0.05
+    security: 0.05
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Validate JSON body shape before using values.
+    - Do not expose stack traces.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: Immutable snapshot rows with opaque cursors binding snapshot id and (updated_at, id) position.
+known_failure_modes:
+  - Naive keyset on live updated_at duplicates items when sort keys move forward.
+  - Offset pagination skips or duplicates under concurrent inserts.
+  - Cursor without snapshot binding crashes when anchor item is deleted.

@@ -1,0 +1,206 @@
+id: rate-limiting.distributed-fairness.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: Shared-store rate limiter with atomic fairness
+description: >-
+  Build a Bun rate limiter backed by one shared in-memory store that enforces
+  10 requests per second per client atomically under concurrency, with standard
+  rate-limit headers and server-side clock discipline.
+difficulty:
+  level: 4
+  rationale: >-
+    Requires atomic check-and-increment on a shared counter, correct window
+    rollover without double refill, fairness across clients, and ignoring client
+    clock skew.
+  expected_code_size:
+    min_lines: 60
+    max_lines: 250
+  expected_concepts:
+    - atomic admission
+    - fixed window counter
+    - rate limit headers
+    - shared store
+    - clock discipline
+category: rate-limiting
+tags:
+  - rate-limiting
+  - bun
+  - distributed-fairness
+  - atomic-counter
+  - shared-store
+dataset:
+  split: dev
+  leakage_group: rate-limiting.distributed-fairness
+  trainable: true
+curriculum:
+  skill_atoms:
+    - atomic-admission
+    - window-rollover
+    - rate-limit-headers
+    - client-fairness
+    - server-clock
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Enforce a shared per-client 10 rps limit with atomic admission and fairness.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - Limit is 10 requests per 1000 ms per X-Client-Id.
+    - Return JSON for every response.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - All handlers share one in-memory store in the process.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not use per-request local counters without shared state.
+success_criteria:
+  must:
+    - GET /resource returns 200 with X-RateLimit-* headers under the limit.
+    - Exceeding 10 requests per window returns 429 with Retry-After.
+    - Different client ids have independent counters.
+  must_not:
+    - Admit more than 10 requests per client per window.
+    - Let two concurrent last-slot requests both succeed.
+    - Grant extra budget based on client clock headers.
+  edge_cases:
+    - After window elapse the client receives a fresh budget of 10.
+    - X-RateLimit-Remaining decrements 9 down to 0 across ten allowed hits.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional: {}
+  services: []
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /healthz
+      expected_status: 200
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: GET
+        path: /healthz
+      - method: GET
+        path: /clock
+      - method: GET
+        path: /resource
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/limited.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/limited-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 180
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.6
+    edge_cases: 0.25
+    performance: 0.05
+    security: 0.05
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Use server clock for window math; ignore client time hints.
+    - Do not expose stack traces.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: Synchronous shared fixed-window counter per client with server-side clock only.
+known_failure_modes:
+  - TOCTOU read-modify-write over-admits under concurrent last-slot requests.
+  - Double refill at window boundary under concurrency.
+  - Honoring X-Client-Time grants extra budget under skew.

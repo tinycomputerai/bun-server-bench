@@ -1,0 +1,206 @@
+id: idempotency.exactly-once-webhook.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: Exactly-once signed webhook processing with ordering
+description: >-
+  Build a Bun service that verifies HMAC-signed webhooks, deduplicates by
+  event_id, applies per-resource updates in sequence order with gap buffering,
+  and handles concurrent duplicate delivery safely.
+difficulty:
+  level: 5
+  rationale: >-
+    Combines webhook authentication, idempotency, per-key sequence ordering, gap
+    buffering, superseded replay ignore, and concurrency-safe exactly-once apply.
+  expected_code_size:
+    min_lines: 120
+    max_lines: 400
+  expected_concepts:
+    - hmac webhook verification
+    - event deduplication
+    - sequence ordering
+    - gap buffering
+    - concurrent idempotency
+category: crud-systems
+tags:
+  - crud-systems
+  - bun
+  - idempotency
+  - webhooks
+  - ordering
+dataset:
+  split: dev
+  leakage_group: idempotency.exactly-once-webhook
+  trainable: true
+curriculum:
+  skill_atoms:
+    - webhook-hmac-verify
+    - event-dedup
+    - sequence-ordering
+    - gap-buffering
+    - concurrent-exactly-once
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Process signed webhooks exactly once with per-resource sequence ordering.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - Use webhook secret webhook-secret with X-Signature sha256 HMAC.
+    - Return JSON for every response.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - State is held in process memory.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not apply events in arrival order without sequence reconciliation.
+success_criteria:
+  must:
+    - POST /webhook with valid signature acks and applies increment/set events.
+    - Duplicate event_id returns 200 without double apply.
+    - GET /resources/:id returns balance and last_sequence.
+  must_not:
+    - Apply tampered unsigned events.
+    - Advance state across a sequence gap before the missing event arrives.
+    - Double-apply under concurrent duplicate delivery.
+  edge_cases:
+    - Out-of-order sequences are buffered then applied in order.
+    - Superseded lower-sequence events are acked without changing state.
+    - Gap events are acked but do not advance last_sequence until filled.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional: {}
+  services: []
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /healthz
+      expected_status: 200
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: GET
+        path: /healthz
+      - method: POST
+        path: /webhook
+      - method: GET
+        path: /resources/{id}
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/webhook.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/webhook-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 120
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.6
+    edge_cases: 0.25
+    performance: 0.05
+    security: 0.05
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Verify HMAC before recording or applying events.
+    - Do not expose stack traces.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: Per-resource locks, event_id dedup, pending buffer for gaps and out-of-order delivery.
+known_failure_modes:
+  - Applying in arrival order instead of sequence order.
+  - Advancing state across a gap when a future sequence arrives first.
+  - Double apply under concurrent duplicate event_id delivery.

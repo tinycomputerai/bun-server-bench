@@ -1,0 +1,215 @@
+id: authentication.jwt-key-rotation.v1
+spec_version: 0.1.0
+task_version: 1.0.0
+title: JWT verification with rotating signing keys
+description: >-
+  Build a Bun service that verifies HS256 JWTs against a JWKS-style rotating key
+  set. Keys overlap during rotation, retire explicitly, and verification selects
+  the correct key by kid with cache invalidation on key-set changes.
+difficulty:
+  level: 5
+  rationale: >-
+    Requires multi-key state consistency, overlap and retirement windows,
+    kid-indexed verification without try-all-keys fallback, and JWKS cache
+    coherence after rotation.
+  expected_code_size:
+    min_lines: 120
+    max_lines: 400
+  expected_concepts:
+    - jwt kid header
+    - jwks key rotation
+    - key retirement overlap
+    - cache invalidation
+    - hmac-sha256 verification
+category: authentication
+tags:
+  - authentication
+  - bun
+  - jwt
+  - jwks
+  - key-rotation
+dataset:
+  split: dev
+  leakage_group: authentication.jwt-key-rotation
+  trainable: true
+curriculum:
+  skill_atoms:
+    - jwt-kid-selection
+    - jwks-rotation
+    - key-retirement
+    - cache-invalidation
+    - hmac-verify
+  small_model_suitability: low
+rollout_capture:
+  enabled: true
+benchmarking:
+  agent_metrics:
+    - wall_time_ms
+    - input_tokens
+    - output_tokens
+    - tool_calls
+  app_metrics:
+    - readiness_ms
+    - p95_latency_ms
+    - max_rss_mb
+instruction:
+  prompt_file: prompt.md
+  summary: Verify JWTs against a rotating JWKS key set with overlap and retirement.
+  constraints:
+    - The service must listen on the port provided by PORT.
+    - Use HS256 symmetric keys identified by kid in the JWT header.
+    - Return JSON for every response.
+  allowed_assumptions:
+    - The process starts from the task root.
+    - node:crypto is available; no JWT library is required.
+  disallowed_shortcuts:
+    - Do not hard-code behavior based on test values.
+    - Do not read files under tests/hidden.
+    - Do not modify test files or runner files.
+    - Do not verify by trying every key when kid is unknown or retired.
+success_criteria:
+  must:
+    - POST /verify returns 200 with sub for a valid token signed with a non-retired kid.
+    - POST /keys/rotate introduces a new active key while prior keys remain valid.
+    - POST /keys/:kid/retire removes a key from verification.
+    - GET /.well-known/jwks lists non-retired verification keys.
+  must_not:
+    - Accept tokens without a kid header.
+    - Fall back to another key when the header kid is unknown or retired.
+    - Serve stale JWKS after rotation without invalidating the cache.
+  edge_cases:
+    - Tokens under a pre-rotation kid verify until that kid is retired.
+    - Malformed kid values at retire return 400.
+    - alg none and wrong-kid signatures return 401.
+environment:
+  runtime: bun
+  bun_version: ">=1.1.0 <2.0.0"
+  os: linux
+  architecture: x86_64
+  network: disabled
+  filesystem:
+    writable:
+      - .
+      - /tmp
+    readonly:
+      - tests
+      - runner
+  env:
+    required:
+      PORT: allocated by runner
+    optional: {}
+  services: []
+interfaces:
+  process:
+    start_command: bun run start
+    readiness:
+      type: http
+      path: /healthz
+      expected_status: 200
+  http:
+    base_url_env: BASE_URL
+    endpoints:
+      - method: GET
+        path: /healthz
+      - method: GET
+        path: /.well-known/jwks
+      - method: POST
+        path: /keys/rotate
+      - method: POST
+        path: /keys/{kid}/retire
+      - method: POST
+        path: /mint
+      - method: POST
+        path: /verify
+tests:
+  public:
+    command: bun test tests/public
+    files:
+      - tests/public/jwks.test.ts
+    weight: 0.3
+  hidden:
+    command: bun test tests/hidden
+    files:
+      - tests/hidden/jwks-hidden.test.ts
+    weight: 0.7
+  mutation_policy:
+    seed_env: BUN_BENCH_SEED
+    deterministic: true
+timeouts:
+  install_seconds: 120
+  start_seconds: 15
+  readiness_seconds: 10
+  test_seconds: 120
+  total_seconds: 900
+  idle_seconds: 30
+scoring:
+  max_score: 100
+  gates:
+    - name: installs
+      requirement: install exits with status 0
+      on_fail: zero
+    - name: starts
+      requirement: readiness check passes
+      on_fail: zero
+    - name: security_baseline
+      requirement: no hidden test access or network egress
+      on_fail: zero
+  weights:
+    correctness: 0.6
+    edge_cases: 0.25
+    performance: 0.05
+    security: 0.05
+    maintainability: 0.05
+  performance:
+    metric: p95_latency_ms
+    budget: 80
+    floor: 10
+  dependency_budget:
+    max_runtime_dependencies: 0
+    penalty_per_extra_dependency: 1
+security:
+  sandbox:
+    network_egress: denied
+    filesystem_hidden_tests: denied
+    process_spawn: restricted
+  app_requirements:
+    - Reject tokens without kid and without alg HS256.
+    - Do not try every key when kid lookup fails.
+    - Do not expose stack traces.
+  forbidden_patterns:
+    - reading tests/hidden
+    - modifying runner files
+    - opening outbound sockets
+dependencies:
+  package_manager: bun
+  install_command: bun install --no-save
+  allow_additional: false
+  allowlist: []
+  denylist: []
+  network_during_install: denied
+  network_during_tests: denied
+artifacts:
+  required:
+    - result.json
+    - junit.xml
+    - logs/stdout.log
+    - logs/stderr.log
+    - metrics.json
+  optional:
+    - coverage/lcov.info
+provenance:
+  source: authored
+  authors:
+    - tinycomputer.ai
+  created_at: "2026-06-16T00:00:00Z"
+  license: Apache-2.0
+reference_solution:
+  visibility: private
+  path: solutions/reference
+  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  expected_score: 100
+  notes: In-memory JWKS with overlap window, kid-indexed verify, and cache invalidation on rotate/retire.
+known_failure_modes:
+  - Verifying only against the newest key breaks the overlap window.
+  - Try-all-keys verification lets retired-key tokens succeed.
+  - Stale JWKS cache rejects tokens under a just-rotated key.
