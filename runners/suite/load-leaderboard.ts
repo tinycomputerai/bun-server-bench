@@ -36,6 +36,16 @@ export function selectFailedTaskIds(leaderboard: SuiteLeaderboard): string[] {
     .sort((left, right) => left.localeCompare(right));
 }
 
+export function selectRetryTaskIds(
+  leaderboard: SuiteLeaderboard,
+  allTaskIds: string[],
+): string[] {
+  const failed = selectFailedTaskIds(leaderboard);
+  const present = new Set(leaderboard.entries.map((entry) => entry.task_id));
+  const pending = allTaskIds.filter((taskId) => !present.has(taskId));
+  return [...failed, ...pending].sort((left, right) => left.localeCompare(right));
+}
+
 export function mergeLeaderboardEntries(
   previous: SuiteLeaderboard["entries"],
   retried: SuiteLeaderboard["entries"],

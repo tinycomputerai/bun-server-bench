@@ -1,68 +1,11 @@
 #!/usr/bin/env bun
 
-import { SUPPORTED_AGENTS } from "../../agents/registry";
+import { parseArgs } from "./cli";
 import { runSuite } from "./suite";
 
-const USAGE = `usage:
-  bun run run:suite --agent <agent-id> --tasks <task-pattern>
-  bun run run:suite --agent <agent-id> --failed-from <leaderboard.json>
-
-examples:
-  bun run run:suite --agent claude-code --tasks 'tasks/**'
-  bun run run:suite --agent claude-code --failed-from results/claude-code/leaderboard.json
-
-supported agents: ${SUPPORTED_AGENTS.join(", ")}`;
-
-function parseArgs(argv: string[]): {
-  agentId: string;
-  tasksPattern?: string;
-  failedFrom?: string;
-} {
-  const args = argv.filter((arg) => arg !== "--");
-  let agentId: string | undefined;
-  let tasksPattern: string | undefined;
-  let failedFrom: string | undefined;
-
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    if (arg === "--agent") {
-      agentId = args[index + 1];
-      index += 1;
-      continue;
-    }
-    if (arg === "--tasks") {
-      tasksPattern = args[index + 1];
-      index += 1;
-      continue;
-    }
-    if (arg === "--failed-from") {
-      failedFrom = args[index + 1];
-      index += 1;
-      continue;
-    }
-    throw new Error(USAGE);
-  }
-
-  if (!agentId || (!tasksPattern && !failedFrom)) {
-    throw new Error(USAGE);
-  }
-
-  if (tasksPattern && failedFrom) {
-    throw new Error("cannot use both --tasks and --failed-from");
-  }
-
-  if (!SUPPORTED_AGENTS.includes(agentId)) {
-    throw new Error(`unknown agent: ${agentId}; supported agents: ${SUPPORTED_AGENTS.join(", ")}`);
-  }
-
-  return { agentId, tasksPattern, failedFrom };
-}
-
 async function main(): Promise<void> {
-  const { agentId, tasksPattern, failedFrom } = parseArgs(process.argv.slice(2));
-  const result = failedFrom
-    ? await runSuite(agentId, { failedFrom })
-    : await runSuite(agentId, { tasksPattern: tasksPattern! });
+  const { agentId, tasksPattern, failedFrom, concurrency } = parseArgs(process.argv.slice(2));
+  const result = await runSuite(agentId, { tasksPattern, failedFrom, concurrency });
 
   console.log(`\n[suite] complete`);
   console.log(`agent: ${result.summary.agent_id}`);

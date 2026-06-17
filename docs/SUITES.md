@@ -10,6 +10,15 @@ bun run run:suite \
   --tasks 'tasks/**'
 ```
 
+Run up to four tasks at once:
+
+```sh
+bun run run:suite \
+  --agent claude-code \
+  --tasks 'tasks/**' \
+  --concurrency 4
+```
+
 Run a single task by path:
 
 ```sh
@@ -18,14 +27,65 @@ bun run run:suite \
   --tasks tasks/http-apis.todo-health.v1
 ```
 
+Retry only failed tasks from a previous leaderboard:
+
+```sh
+bun run run:suite \
+  --agent claude-code \
+  --failed-from results/claude-code/leaderboard.json
+```
+
+Resume failed and pending tasks after an interrupted run:
+
+```sh
+bun run run:suite \
+  --agent claude-code \
+  --tasks 'tasks/**' \
+  --failed-from results/claude-code/leaderboard.json \
+  --concurrency 3
+```
+
+`--failed-from` alone reruns tasks with score `< 100`. Combine it with `--tasks` to also run tasks that never finished (missing from the leaderboard). Passing tasks from the previous leaderboard are kept; retried results replace failures and fill in pending tasks.
+
 ## Lifecycle
 
 1. Discover task directories matching the `--tasks` pattern.
 2. Validate each discovered task with `validators/validate-task.ts`.
-3. Run tasks sequentially via the existing `run:agent` implementation.
-4. Write aggregate artifacts under `results/<agent-id>/`.
+3. Run tasks with the configured concurrency via the existing `run:agent` implementation.
+4. After each task finishes, update `results/<agent-id>/summary.json` and `leaderboard.json`.
+5. Write the final aggregate artifacts when the suite completes.
 
 Each task still produces its own run artifact under `runs/<timestamp>-<task-id>/result.json`.
+
+Interrupted runs keep partial progress in `results/<agent-id>/`. Resume with `--tasks` and `--failed-from` to rerun only failed and pending tasks.
+
+## Concurrency
+
+`--concurrency N` controls how many tasks run at the same time. Default is `1`, which preserves the original sequential behavior.
+
+| Flag | Behavior |
+| --- | --- |
+| omitted / `--concurrency 1` | Sequential execution (one task at a time) |
+| `--concurrency N` where `N > 1` | Up to `N` tasks in parallel |
+
+Each parallel task still gets:
+
+- its own run directory under `runs/<timestamp>-<task-id>/`
+- its own workspace copy under that run directory
+- its own dynamically allocated `PORT` for app startup
+- isolated logs under `runs/<timestamp>-<task-id>/logs/`
+- its own `result.json`
+
+Hidden tests still run from each task's source directory with `BUN_BENCH_APP_DIR` pointing at that task's workspace. Tasks do not share app ports or run directories.
+
+Progress logs include task start, completion, failure, and active/finished/total counts.
+
+### Guardrails
+
+- `--concurrency` must be an integer `>= 1`; invalid values fail fast with a clear CLI error.
+- When `--agent claude-code` and `--concurrency` is greater than `3`, the runner prints a warning that API/tool rate limits may apply.
+- Suite execution continues when individual tasks fail.
+- Summary and leaderboard ordering remain deterministic: entries are sorted by task id before aggregate output is written; the leaderboard is then sorted by score descending, then task id ascending.
 
 ## Task Discovery
 
@@ -64,11 +124,11 @@ results/<agent-id>/
 
 | Field | Description |
 | --- | --- |
-| `total_tasks` | Number of valid tasks executed |
-| `passed` | Tasks with `status: "completed"` |
-| `failed` | Tasks with any other status |
-| `average_score` | Mean score across all tasks |
-| `total_wall_time_ms` | Actual elapsed time for the full suite run |
+| `total_tasks` | Expected task count for the suite (or completed count when omitted) |
+| `passed` | Tasks with `status: "completed"` in the current leaderboard |
+| `failed` | Tasks with any other status in the current leaderboard |
+| `average_score` | Mean score across leaderboard entries written so far |
+| `total_wall_time_ms` | Elapsed wall time since the suite started |
 
 ### leaderboard.json
 
@@ -117,7 +177,7 @@ A task **fails** for any other status, including:
 ```
 runners/suite/
   run-suite.ts       # CLI entry point
-  suite.ts           # Sequential orchestration
+  suite.ts           # Orchestration and parallel execution
   discover-tasks.ts  # Task pattern resolution and validation
   types.ts           # summary.json and leaderboard.json types
 ```
@@ -126,7 +186,6 @@ The suite runner reuses `runAgent()` from `runners/agent/runner.ts` without dupl
 
 ## Known Limitations
 
-- Tasks run sequentially, not in parallel.
-- Suite output overwrites previous results for the same agent id.
 - No Harbor integration, rollout capture, or RL.
 - Task discovery supports simple glob patterns only (`tasks/**`, `tasks/*`, or a single task path).
+- High concurrency with `claude-code` may trigger API or tool rate limits.
