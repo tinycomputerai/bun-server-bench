@@ -35,6 +35,9 @@ optimistic version conflicts, and deterministic rebuild.
 `GET /projections/:aggregate_id` — current read model.
 
 - Returns `{ "aggregate_id", "name", "total", "last_version" }`.
+- `last_version` is the highest event **version whose effect was applied** to the
+  projection. Quarantined events are stored in the log but do **not** advance
+  `last_version` (a single quarantined v1 event leaves `last_version` at 0).
 
 `POST /projections/:aggregate_id/rebuild` — rebuild the projection from the log.
 

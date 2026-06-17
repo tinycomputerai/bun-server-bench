@@ -28,9 +28,9 @@ tags:
   - etag
   - vary
 dataset:
-  split: dev
+  split: private_eval
   leakage_group: http.conditional-cache-semantics
-  trainable: true
+  trainable: false
 curriculum:
   skill_atoms:
     - conditional-get-304

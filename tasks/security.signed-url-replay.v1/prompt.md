@@ -16,14 +16,20 @@ query parameters with expiry, bounded clock skew, and single-use nonces.
 
 `POST /sign` — create a signed URL.
 
-- Body: `{ "method": string, "path": string, "query"?: object, "ttl"?: seconds }` (default ttl 300).
+- Body: `{ "method": string, "path": string, "query"?: object, "ttl"?: seconds }`.
+- `ttl` is an integer second offset added to the current Unix time to compute
+  `exp` (default `300`). Negative values are valid and produce URLs that are
+  already expired.
 - Canonicalize query keys sorted; exclude `sig`, `exp`, `nonce` from the signed query string.
+- Signature payload (newline-separated): `METHOD`, `path`, canonical query string,
+  `exp`, `nonce` — all as strings in that order.
 - Returns `200` `{ "url": "<path>?...&exp=&nonce=&sig=", "exp", "nonce" }`.
 
 Any request whose URL includes `sig`, `exp`, and `nonce` query params is verified:
 
 - Valid first use → `200` `{ "ok": true, "path" }`.
-- Expired, tampered, missing, or replayed nonce → `403` `{ "error": "forbidden" }`.
+- Expired (`exp` more than 30 seconds in the past, after skew tolerance), tampered,
+  missing, or replayed nonce → `403` `{ "error": "forbidden" }`.
 - Use constant-time signature comparison.
 
 ## Notes

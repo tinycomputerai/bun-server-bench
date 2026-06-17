@@ -29,7 +29,7 @@ tags:
   - hmac
   - alg-confusion
 dataset:
-  split: dev
+  split: train
   leakage_group: authentication.jwt-verify
   trainable: true
 curriculum:

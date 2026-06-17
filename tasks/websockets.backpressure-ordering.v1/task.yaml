@@ -24,9 +24,9 @@ tags:
   - ordering
   - broadcast
 dataset:
-  split: dev
+  split: private_eval
   leakage_group: websockets.backpressure-ordering
-  trainable: true
+  trainable: false
 curriculum:
   skill_atoms:
     - per-client-queues

@@ -30,6 +30,13 @@ with per-client bounded queues, drop-oldest overflow policy, and gap markers.
 When a client's queue exceeds capacity, drop the **oldest** message and enqueue a
 gap marker so the client knows it missed a range.
 
+- Queue capacity counts messages **not yet delivered** to the client. Messages
+  already accepted by `ws.send()` still count toward capacity until the client
+  has been handed the payload (do not let the socket buffer absorb an unbounded
+  backlog and bypass drop-oldest).
+- A slow subscriber must emit gap markers under publish floods even when the
+  publisher loop does not block.
+
 ## Notes
 
 - Each client receives its messages in ascending `seq` order (gaps excepted).

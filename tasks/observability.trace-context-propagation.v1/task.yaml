@@ -24,7 +24,7 @@ tags:
   - traceparent
   - async-context
 dataset:
-  split: dev
+  split: train
   leakage_group: observability.trace-context-propagation
   trainable: true
 curriculum:
