@@ -42,8 +42,6 @@ jobs:
         with:
           client-id: ${{ vars.TINYCOMPUTER_GITHUB_APP_CLIENT_ID }}
           private-key: ${{ secrets.TINYCOMPUTER_GITHUB_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
           permission-contents: write
 
       - name: Commit and push harbor exports
@@ -51,8 +49,8 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
-          git config user.name "tinycomputer"
-          git config user.email "41898282+tinycomputer[bot]@users.noreply.github.com"
+          git config user.name "tinycomputerai"
+          git config user.email "${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
           git add harbor/
           if git diff --staged --quiet; then
             echo "Harbor exports are already up to date."
