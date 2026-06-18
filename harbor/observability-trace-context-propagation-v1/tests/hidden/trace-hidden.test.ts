@@ -29,7 +29,7 @@ describe("trace context hidden", () => {
 
   test("inbound not-sampled honored", async () => {
     if (!server) throw new Error("no server");
-    const traceId = "0".repeat(32);
+    const traceId = "a".repeat(32);
     const parentId = "1".repeat(16);
     const res = await ingress(server.baseUrl, {
       traceparent: `00-${traceId}-${parentId}-00`,
