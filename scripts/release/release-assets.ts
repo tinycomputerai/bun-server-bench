@@ -4,7 +4,7 @@ import { releaseAssetPaths, repoRoot } from "./paths";
 export const RELEASE_ASSETS_HINT = [
   "Stage release assets locally before tagging:",
   "  bun run release:stage",
-  "  bun run release:upload-staging -- --tag <tag>",
+  "  bun run release:upload-staging -- --tag <version>",
   "Then tag the release and run the Release workflow.",
   "See docs/RELEASING.md.",
 ].join("\n");

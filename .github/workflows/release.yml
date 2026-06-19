@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to create (example: v0.1.0)"
+        description: "Release version to create (example: 0.1.0; do not include v)"
         required: true
         type: string
       dry_run:
@@ -34,7 +34,8 @@ jobs:
   release:
     runs-on: ubuntu-latest
     env:
-      RELEASE_TAG: ${{ github.event.inputs.tag }}
+      RELEASE_VERSION: ${{ github.event.inputs.tag }}
+      RELEASE_TAG: v${{ github.event.inputs.tag }}
       DRY_RUN: ${{ github.event.inputs.dry_run }}
     steps:
       - name: Checkout repository
@@ -43,13 +44,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup tinycomputer app
-        id: setup-releaser-app
-        uses: ./.github/actions/setup-releaser-app
-        with:
-          client-id: ${{ vars.TINYCOMPUTER_GITHUB_APP_CLIENT_ID }}
-          private-key: ${{ secrets.TINYCOMPUTER_GITHUB_APP_PRIVATE_KEY }}
-
       - name: Require branch dispatch
         run: |
           set -euo pipefail
@@ -57,6 +51,21 @@ jobs:
             echo "Release workflow must be run from a branch, not ${GITHUB_REF_TYPE}."
             exit 1
           fi
+
+      - name: Validate release version
+        run: |
+          set -euo pipefail
+          if [[ ! "${RELEASE_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release version must use X.Y.Z format (example: 0.1.0). Do not include a leading v."
+            exit 1
+          fi
+
+      - name: Setup tinycomputer app
+        id: setup-releaser-app
+        uses: ./.github/actions/setup-releaser-app
+        with:
+          client-id: ${{ vars.TINYCOMPUTER_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.TINYCOMPUTER_GITHUB_APP_PRIVATE_KEY }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -75,7 +84,7 @@ jobs:
       - name: Fetch staged release assets
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: bun run release:fetch-staging -- --tag "${{ github.event.inputs.tag }}"
+        run: bun run release:fetch-staging -- --tag "${RELEASE_VERSION}"
 
       - name: Validate benchmark
         run: bun run validate
@@ -84,19 +93,19 @@ jobs:
         run: bun run test
 
       - name: Verify release assets
-        run: bun run release:verify -- --tag "${{ github.event.inputs.tag }}" --datasets-only
+        run: bun run release:verify -- --tag "${RELEASE_VERSION}" --datasets-only
 
       - name: Build release artifacts
-        run: bun run release:build -- --tag "${{ github.event.inputs.tag }}"
+        run: bun run release:build -- --tag "${RELEASE_VERSION}"
 
       - name: Verify release artifacts
-        run: bun run release:verify -- --tag "${{ github.event.inputs.tag }}"
+        run: bun run release:verify -- --tag "${RELEASE_VERSION}"
 
       - name: Create and push release tag
-        if: github.event.inputs.dry_run != true
+        if: github.event.inputs.dry_run != 'true'
         run: |
           set -euo pipefail
-          TAG="${{ github.event.inputs.tag }}"
+          TAG="${RELEASE_TAG}"
           if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
             echo "Tag ${TAG} already exists."
             exit 1
@@ -108,7 +117,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.setup-releaser-app.outputs.token }}
         run: |
-          VERSION="${RELEASE_TAG#v}"
+          VERSION="${RELEASE_VERSION}"
           if [ "${DRY_RUN}" = "true" ]; then
             bun run release:github:dry-run -- "${VERSION}"
           else
@@ -121,9 +130,9 @@ jobs:
           HARBOR_TOKEN: ${{ secrets.HARBOR_TOKEN }}
         run: |
           if [ "${DRY_RUN}" = "true" ]; then
-            bun run release:harbor -- --tag "${{ github.event.inputs.tag }}" --dry-run
+            bun run release:harbor -- --tag "${RELEASE_VERSION}" --dry-run
           else
-            bun run release:harbor -- --tag "${{ github.event.inputs.tag }}"
+            bun run release:harbor -- --tag "${RELEASE_VERSION}"
           fi
 
       - name: Publish Hugging Face dataset
@@ -132,7 +141,7 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           if [ "${DRY_RUN}" = "true" ]; then
-            bun run release:huggingface -- --tag "${{ github.event.inputs.tag }}" --dry-run
+            bun run release:huggingface -- --tag "${RELEASE_VERSION}" --dry-run
           else
-            bun run release:huggingface -- --tag "${{ github.event.inputs.tag }}"
+            bun run release:huggingface -- --tag "${RELEASE_VERSION}"
           fi

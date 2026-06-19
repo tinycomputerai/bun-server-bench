@@ -3,9 +3,8 @@
 Manual release automation for bun-bench. Releases are triggered from GitHub
 Actions only — there is no auto-release on push.
 
-The workflow never creates git tags, never bumps package versions, and never
-publishes to npm. You create and push the tag yourself, then run the workflow
-against that existing tag.
+The workflow creates the `vX.Y.Z` git tag from a bare `X.Y.Z` version input. It
+never bumps package versions and never publishes to npm.
 
 The benchmark repository contains source code, tasks, schemas, docs, and release
 tooling only. Large generated JSONL exports are **not** committed to git history.
@@ -31,8 +30,8 @@ Generate trajectories
   → Export datasets
   → Stage release assets
   → Upload staging
-  → Tag release
   → Run workflow_dispatch
+  → Create release tag
   → Publish GitHub Release
   → Publish Harbor
   → Publish Hugging Face
@@ -82,7 +81,7 @@ release-assets/
 Verify locally:
 
 ```sh
-bun run release:verify -- --tag v0.1.0 --datasets-only
+bun run release:verify -- --tag 0.1.0 --datasets-only
 ```
 
 ### 4. Upload staging
@@ -92,10 +91,11 @@ them during the release workflow:
 
 ```sh
 export HF_TOKEN=...   # write token for tinycomputer/bun-bench-trajectories
-bun run release:upload-staging -- --tag v0.1.0
+bun run release:upload-staging -- --tag 0.1.0
 ```
 
-Files are stored at:
+The command accepts the bare version and stores files under the derived release
+tag:
 
 ```text
 staging/<tag>/bun-bench-sft.jsonl
@@ -105,45 +105,30 @@ staging/<tag>/bun-bench-patches.jsonl
 in `tinycomputer/bun-bench-trajectories`. Staging is separate from the final
 published release paths under `releases/<tag>/`.
 
-### 5. Tag the release
-
-Create the tag on the source commit (no dataset JSONL in git):
-
-```sh
-git tag -a v0.1.0 -m "Release v0.1.0"
-git push origin v0.1.0
-```
-
-Use [Semantic Versioning](https://semver.org/) tags prefixed with `v`
-(for example `v0.1.0`, `v1.0.0`).
-
-The workflow verifies that:
-
-- the tag already exists on the remote
-- the checked-out commit exactly matches the tag
-- staged release assets can be fetched for that tag
-
-It does **not** create or move tags.
-
-### 6. Run the release workflow
+### 5. Run the release workflow
 
 Open **Actions → Release → Run workflow**.
+
+Use [Semantic Versioning](https://semver.org/) without a `v` prefix for the
+workflow input (for example `0.1.0`, `1.0.0`). The workflow creates and pushes
+the corresponding git tag (for example `v0.1.0`) after validation and artifact
+builds succeed.
 
 #### Dry run first
 
 | Input | Value |
 | --- | --- |
-| `tag` | Your tag, e.g. `v0.1.0` |
+| `tag` | Your version, e.g. `0.1.0` |
 | `dry_run` | `true` |
 | `publish_harbor` | `true` or `false` |
 | `publish_huggingface` | `true` or `false` |
 
 Dry runs execute the full validation and build pipeline on GitHub-hosted runners:
 
-1. Checkout the tag (source only)
+1. Checkout the selected branch (source only)
 2. Fetch staged assets from Hugging Face into `release-assets/`
 3. `bun run validate`
-4. `bun test`
+4. `bun run test`
 5. Verify release assets and safety rules
 6. Build artifacts into `dist/release/`
 7. Verify the tarball excludes `runs/`, `results/`, and `release-assets/`
@@ -158,6 +143,7 @@ Run the same workflow with `dry_run: false`.
 
 When `dry_run` is false:
 
+- **Git tag** `vX.Y.Z` is created and pushed
 - **GitHub Release** is created (or updated) for the existing tag via `release-it`
 - **Harbor Hub** packages are published when `publish_harbor=true`
 - **Hugging Face** release dataset files are uploaded when `publish_huggingface=true`
@@ -238,24 +224,24 @@ Dataset repo: [tinycomputer/bun-bench-trajectories](https://huggingface.co/datas
 bun run release:stage
 
 # Upload staging to Hugging Face (before tagging)
-bun run release:upload-staging -- --tag v0.1.0
+bun run release:upload-staging -- --tag 0.1.0
 
 # Verify staged assets (pre-build)
-bun run release:verify -- --tag v0.1.0 --datasets-only
+bun run release:verify -- --tag 0.1.0 --datasets-only
 
 # Fetch staging locally (same step CI runs)
-bun run release:fetch-staging -- --tag v0.1.0
+bun run release:fetch-staging -- --tag 0.1.0
 
 # Build dist/release artifacts
-bun run release:build -- --tag v0.1.0
+bun run release:build -- --tag 0.1.0
 
 # Verify assets + tarball (post-build)
-bun run release:verify -- --tag v0.1.0
+bun run release:verify -- --tag 0.1.0
 
 # GitHub / Harbor / Hugging Face publish scripts
 bun run release:github:dry-run -- 0.1.0
-bun run release:harbor -- --tag v0.1.0 --dry-run
-bun run release:huggingface -- --tag v0.1.0 --dry-run
+bun run release:harbor -- --tag 0.1.0 --dry-run
+bun run release:huggingface -- --tag 0.1.0 --dry-run
 ```
 
 ## Rollback and retry
@@ -263,7 +249,7 @@ bun run release:huggingface -- --tag v0.1.0 --dry-run
 ### Staging upload failed or wrong assets staged
 
 1. Fix exports and re-run `release:stage`.
-2. Re-run `release:upload-staging -- --tag <tag>` (overwrites staging paths).
+2. Re-run `release:upload-staging -- --tag <version>` (overwrites staging paths).
 3. Proceed with tag and workflow.
 
 ### GitHub Release failed after artifacts were built
