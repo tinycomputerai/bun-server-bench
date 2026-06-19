@@ -10,6 +10,7 @@
     "typescript": "5.9.3"
   },
   "scripts": {
+    "test": "bun test runners",
     "validate": "bun run validate:tasks",
     "validate:task": "bun validators/validate-task.ts",
     "validate:tasks": "bun validators/validate-tasks.ts",

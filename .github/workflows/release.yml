@@ -81,7 +81,7 @@ jobs:
         run: bun run validate
 
       - name: Run tests
-        run: bun test
+        run: bun run test
 
       - name: Verify release assets
         run: bun run release:verify -- --tag "${{ github.event.inputs.tag }}" --datasets-only
