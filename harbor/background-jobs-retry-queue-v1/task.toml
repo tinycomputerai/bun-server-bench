@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/background-jobs-retry-queue-v1"
+name = "tinycomputerai/bun-server-bench-background-jobs-retry-queue-v1"
 description = "Build a Bun service with an in-process asynchronous job queue. A background worker processes jobs decoupled from the request, retries failures with a small backoff up to a bounded number of attempts, and moves exhausted jobs to a terminal dead-letter state, all observable through a job status endpoint."
 keywords = ["bun-server-bench", "id:background-jobs.retry-queue.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:background-jobs", "difficulty:4"]
 [[task.authors]]

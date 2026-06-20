@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/idempotency-exactly-once-webhook-v1"
+name = "tinycomputerai/bun-server-bench-idempotency-exactly-once-webhook-v1"
 description = "Build a Bun service that verifies HMAC-signed webhooks, deduplicates by event_id, applies per-resource updates in sequence order with gap buffering, and handles concurrent duplicate delivery safely."
 keywords = ["bun-server-bench", "id:idempotency.exactly-once-webhook.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:crud-systems", "difficulty:5"]
 [[task.authors]]

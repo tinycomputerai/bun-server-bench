@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/pagination-consistent-snapshot-v1"
+name = "tinycomputerai/bun-server-bench-pagination-consistent-snapshot-v1"
 description = "Build a Bun service that paginates items by (updated_at, id) using snapshot- bound cursors so concurrent creates, updates, and deletes do not cause duplicates, skips, or invalid cursors during traversal."
 keywords = ["bun-server-bench", "id:pagination.consistent-snapshot.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:http-apis", "difficulty:5"]
 [[task.authors]]

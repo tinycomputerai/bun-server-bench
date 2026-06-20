@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/retry-poison-message-budget-v1"
+name = "tinycomputerai/bun-server-bench-retry-poison-message-budget-v1"
 description = "Poison message retry budget. Permanent failures dead-letter without retry. Poison messages exhaust the retry budget then dead-letter. Side effects are not duplicated on retry."
 keywords = ["bun-server-bench", "id:retry.poison-message-budget.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:background-jobs", "difficulty:5"]
 [[task.authors]]

@@ -70,6 +70,10 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
+      - name: Setup uv
+        # Provides `uvx`, used by release:harbor to run the Harbor CLI.
+        uses: astral-sh/setup-uv@v6
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -84,6 +88,9 @@ jobs:
       - name: Fetch staged release assets
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          # Fetching staged assets is a prep step for build + verify, so it must
+          # run for real even on a dry-run release (only publishing is skipped).
+          DRY_RUN: "false"
         run: bun run release:fetch-staging -- --tag "${RELEASE_VERSION}"
 
       - name: Validate benchmark

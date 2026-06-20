@@ -153,7 +153,7 @@ score for the same reference solution.
 
 | bun-server-bench field | Harbor destination | Notes |
 | --- | --- | --- |
-| `id` | `task.name` = `bun-server-bench/<sanitized-id>`; `keywords` `id:<id>`; README; sidecar | Harbor names are slugs, so dots → hyphens; the true id is preserved verbatim. |
+| `id` | `task.name` = `tinycomputerai/bun-server-bench-<sanitized-id>`; `keywords` `id:<id>`; README; sidecar | Published under the `tinycomputerai` org as part of the `tinycomputerai/bun-server-bench` dataset. Harbor names are slugs, so dots → hyphens; the true id is preserved verbatim. |
 | `task_version`, `spec_version` | `keywords`; sidecar | Harbor versions packages via its registry; bun-server-bench versions ride as metadata. |
 | `title` | README; sidecar | |
 | `description` | `task.description` | Whitespace-collapsed. |

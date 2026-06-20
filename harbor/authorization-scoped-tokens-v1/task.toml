@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/authorization-scoped-tokens-v1"
+name = "tinycomputerai/bun-server-bench-authorization-scoped-tokens-v1"
 description = "Build a Bun service that authorizes file operations using OAuth-style bearer token scopes, returning the correct 401-vs-403 distinction and an RFC 6750 insufficient_scope WWW-Authenticate challenge header naming the required scope."
 keywords = ["bun-server-bench", "id:authorization.scoped-tokens.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:authorization", "difficulty:3"]
 [[task.authors]]

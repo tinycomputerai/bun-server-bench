@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/crud-systems-etag-concurrency-v1"
+name = "tinycomputerai/bun-server-bench-crud-systems-etag-concurrency-v1"
 description = "Build a Bun service that stores configuration entries in memory and protects updates with optimistic concurrency control using strong content-hash ETags and RFC 7232 If-Match conditional requests, returning 412 on a stale precondition and supporting the wildcard."
 keywords = ["bun-server-bench", "id:crud-systems.etag-concurrency.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:crud-systems", "difficulty:4"]
 [[task.authors]]

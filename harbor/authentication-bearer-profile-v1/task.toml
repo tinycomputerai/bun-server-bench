@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/authentication-bearer-profile-v1"
+name = "tinycomputerai/bun-server-bench-authentication-bearer-profile-v1"
 description = "Build a Bun HTTP endpoint that returns a profile only when the request includes the expected bearer token."
 keywords = ["bun-server-bench", "id:authentication.bearer-profile.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:authentication", "difficulty:1"]
 [[task.authors]]

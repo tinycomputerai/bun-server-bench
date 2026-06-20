@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/event-sourcing-idempotent-projection-v1"
+name = "tinycomputerai/bun-server-bench-event-sourcing-idempotent-projection-v1"
 description = "Build a Bun append-only event log with versioned events, incremental projection, out-of-order buffering, optimistic conflicts, quarantined poison events, and deterministic rebuild."
 keywords = ["bun-server-bench", "id:event-sourcing.idempotent-projection.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:databases", "difficulty:5"]
 [[task.authors]]

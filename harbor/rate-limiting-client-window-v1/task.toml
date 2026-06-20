@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/rate-limiting-client-window-v1"
+name = "tinycomputerai/bun-server-bench-rate-limiting-client-window-v1"
 description = "Build a Bun endpoint that enforces a simple per-client in-memory request limit."
 keywords = ["bun-server-bench", "id:rate-limiting.client-window.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:rate-limiting", "difficulty:2"]
 [[task.authors]]

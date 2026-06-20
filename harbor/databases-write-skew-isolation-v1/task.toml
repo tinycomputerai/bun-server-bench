@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/databases-write-skew-isolation-v1"
+name = "tinycomputerai/bun-server-bench-databases-write-skew-isolation-v1"
 description = "Write-skew safe on-call roster. Concurrent go-off-call requests leave at least one engineer on-call. Exactly one concurrent off succeeds when two remain on-call."
 keywords = ["bun-server-bench", "id:databases.write-skew-isolation.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:databases", "difficulty:5"]
 [[task.authors]]

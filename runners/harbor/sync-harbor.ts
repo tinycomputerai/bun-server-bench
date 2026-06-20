@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { discoverTasks } from "../suite/discover-tasks";
 import { exportTask } from "./export";
 import { pruneStaleHarborExports } from "./prune-stale";
+import { syncDataset } from "./sync-dataset";
 import { writeTasksLock } from "./tasks-lock";
 import {
   findChangedTaskPaths,
@@ -141,6 +142,7 @@ async function main(): Promise<void> {
 
   const lockPath = writeTasksLock(harborRoot);
   console.log(`[harbor:sync] wrote tasks lock to ${lockPath}`);
+  syncDataset(outRoot);
   console.log(
     `[harbor:sync] synced ${exported} task export(s), removed ${removed.length} stale export(s)`,
   );

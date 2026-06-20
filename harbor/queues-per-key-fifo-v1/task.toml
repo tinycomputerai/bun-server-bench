@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/queues-per-key-fifo-v1"
+name = "tinycomputerai/bun-server-bench-queues-per-key-fifo-v1"
 description = "Build a Bun work queue with strict FIFO ordering per partition key, concurrent processing across keys, per-key worker exclusivity, ordered retry, and backpressure when a key backlog grows too large."
 keywords = ["bun-server-bench", "id:queues.per-key-fifo.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:background-jobs", "difficulty:5"]
 [[task.authors]]

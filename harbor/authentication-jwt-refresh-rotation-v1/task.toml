@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/authentication-jwt-refresh-rotation-v1"
+name = "tinycomputerai/bun-server-bench-authentication-jwt-refresh-rotation-v1"
 description = "Build a Bun service that issues short-lived HS256 access tokens with rotating opaque refresh tokens. Each rotation invalidates the presented refresh token, and reusing a rotated-out token revokes the entire token family."
 keywords = ["bun-server-bench", "id:authentication.jwt-refresh-rotation.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:authentication", "difficulty:4"]
 [[task.authors]]

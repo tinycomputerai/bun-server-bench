@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/authorization-confused-deputy-v1"
+name = "tinycomputerai/bun-server-bench-authorization-confused-deputy-v1"
 description = "Confused-deputy safe act-as delegation. POST /act-as honors caller ∩ delegation ∩ resource policy. Delegation chains only narrow authority. Revoked delegations return 403."
 keywords = ["bun-server-bench", "id:authorization.confused-deputy.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:authorization", "difficulty:5"]
 [[task.authors]]

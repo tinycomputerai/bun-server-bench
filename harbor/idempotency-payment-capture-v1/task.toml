@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/idempotency-payment-capture-v1"
+name = "tinycomputerai/bun-server-bench-idempotency-payment-capture-v1"
 description = "Build a Bun HTTP service that captures payments idempotently using an Idempotency-Key header. Replays of the same key and body return the original response, the same key with a different body conflicts, and a concurrent burst of identical requests must create exactly one payment."
 keywords = ["bun-server-bench", "id:idempotency.payment-capture.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:http-apis", "difficulty:4"]
 [[task.authors]]

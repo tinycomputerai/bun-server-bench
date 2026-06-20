@@ -24,6 +24,7 @@
     "harbor:export": "bun runners/harbor/export-task.ts",
     "harbor:export-suite": "bun runners/harbor/export-suite.ts",
     "harbor:tasks-lock": "bun runners/harbor/tasks-lock.ts",
+    "harbor:dataset": "bun runners/harbor/sync-dataset.ts",
     "harbor:sync": "bun runners/harbor/sync-harbor.ts",
     "release:stage": "bun scripts/release/stage-release-assets.ts",
     "release:upload-staging": "bun scripts/release/upload-release-staging.ts",

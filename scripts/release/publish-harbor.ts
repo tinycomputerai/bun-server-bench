@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseReleaseArgs, usage } from "./parse-args";
@@ -33,26 +33,33 @@ function installHarborCredentials(credentialsJson: string): void {
   writeFileSync(HARBOR_CREDENTIALS_PATH, credentialsJson, { mode: 0o600 });
 }
 
-function buildPublishCommand(tag: string, harborRoot: string): string[] {
-  return ["uvx", "harbor", "publish", harborRoot, "-t", tag, "--public"];
+// Task package directories are the subdirectories of harbor/ that contain a
+// task.toml. The dataset.toml and README.md at the root are not task packages.
+function findTaskDirs(harborRoot: string): string[] {
+  return readdirSync(harborRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => join(harborRoot, entry.name))
+    .filter((dir) => existsSync(join(dir, "task.toml")))
+    .sort();
 }
 
-async function runHarborPublish(tag: string, harborRoot: string): Promise<number> {
-  const encoded = process.env.HARBOR_TOKEN?.trim();
-  if (!encoded) {
-    throw new Error("HARBOR_TOKEN is required to publish Harbor packages");
-  }
+function buildTasksCommand(tag: string, taskDirs: string[]): string[] {
+  return ["uvx", "harbor", "publish", ...taskDirs, "-t", tag, "--public"];
+}
 
-  installHarborCredentials(decodeHarborToken(encoded));
+function buildDatasetCommand(tag: string, datasetToml: string): string[] {
+  return ["uvx", "harbor", "publish", datasetToml, "-t", tag, "--public"];
+}
 
-  const command = buildPublishCommand(tag, harborRoot);
+async function run(command: string[], confirm: boolean): Promise<number> {
   const proc = Bun.spawn(command, {
     cwd: repoRoot(),
+    // Publishing a dataset as public prompts for confirmation; feed "y".
+    stdin: confirm ? Buffer.from("y\n") : "inherit",
     stdout: "inherit",
     stderr: "inherit",
     env: process.env,
   });
-
   return proc.exited;
 }
 
@@ -72,17 +79,46 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const command = buildPublishCommand(options.tag, harborRoot).join(" ");
+  const taskDirs = findTaskDirs(harborRoot);
+  if (taskDirs.length === 0) {
+    console.error(`[release:harbor] no task packages found under ${harborRoot}`);
+    process.exit(1);
+  }
+
+  const datasetToml = join(harborRoot, "dataset.toml");
+  const hasDataset = existsSync(datasetToml);
+
+  // Tasks must be published before the dataset, which references them by digest.
+  const tasksCommand = buildTasksCommand(options.tag, taskDirs);
+  const datasetCommand = hasDataset ? buildDatasetCommand(options.tag, datasetToml) : null;
 
   if (options.dryRun) {
     console.log("[release:harbor] dry run — would run:");
-    console.log(`  HARBOR_TOKEN=*** ${command}`);
+    console.log(`  HARBOR_TOKEN=*** ${["uvx", "harbor", "publish", `<${taskDirs.length} task dirs>`, "-t", options.tag, "--public"].join(" ")}`);
+    if (datasetCommand) {
+      console.log(`  HARBOR_TOKEN=*** ${datasetCommand.join(" ")}  (auto-confirmed)`);
+    }
     return;
   }
 
-  const exitCode = await runHarborPublish(options.tag, harborRoot);
-  if (exitCode !== 0) {
-    process.exit(exitCode);
+  const encoded = process.env.HARBOR_TOKEN?.trim();
+  if (!encoded) {
+    throw new Error("HARBOR_TOKEN is required to publish Harbor packages");
+  }
+  installHarborCredentials(decodeHarborToken(encoded));
+
+  console.log(`[release:harbor] publishing ${taskDirs.length} task package(s)…`);
+  const tasksExit = await run(tasksCommand, false);
+  if (tasksExit !== 0) {
+    process.exit(tasksExit);
+  }
+
+  if (datasetCommand) {
+    console.log("[release:harbor] publishing dataset…");
+    const datasetExit = await run(datasetCommand, true);
+    if (datasetExit !== 0) {
+      process.exit(datasetExit);
+    }
   }
 
   console.log(`[release:harbor] published harbor/ with tag ${options.tag}`);

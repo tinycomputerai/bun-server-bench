@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/error-handling-safe-error-v1"
+name = "tinycomputerai/bun-server-bench-error-handling-safe-error-v1"
 description = "Build a Bun service that returns stable JSON errors without leaking stack traces."
 keywords = ["bun-server-bench", "id:error-handling.safe-error.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:error-handling", "difficulty:1"]
 [[task.authors]]

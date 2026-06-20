@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/validation-required-name-v1"
+name = "tinycomputerai/bun-server-bench-validation-required-name-v1"
 description = "Build a Bun endpoint that creates a user only when the request contains a valid non-empty name."
 keywords = ["bun-server-bench", "id:validation.required-name.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:validation", "difficulty:1"]
 [[task.authors]]

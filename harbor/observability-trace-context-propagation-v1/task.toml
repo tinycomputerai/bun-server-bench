@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/observability-trace-context-propagation-v1"
+name = "tinycomputerai/bun-server-bench-observability-trace-context-propagation-v1"
 description = "W3C trace context propagation. Child spans reference immediate parent span ids. Sampling decision is consistent for the whole trace. Malformed traceparent is replaced safely."
 keywords = ["bun-server-bench", "id:observability.trace-context-propagation.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:observability", "difficulty:5"]
 [[task.authors]]

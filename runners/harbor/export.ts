@@ -50,7 +50,7 @@ export async function exportTask(taskDirInput: string, outRoot: string): Promise
 
   const task = parseTaskYaml(taskDir);
   const id = String(task.id);
-  const harborName = `bun-server-bench/${sanitizeName(id)}`;
+  const harborName = `tinycomputerai/bun-server-bench-${sanitizeName(id)}`;
   const outDir = resolve(process.cwd(), outRoot, sanitizeName(id));
 
   rmSync(outDir, { recursive: true, force: true });

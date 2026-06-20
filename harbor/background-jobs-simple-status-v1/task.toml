@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/background-jobs-simple-status-v1"
+name = "tinycomputerai/bun-server-bench-background-jobs-simple-status-v1"
 description = "Build a Bun API that creates in-memory jobs and returns their final status by id."
 keywords = ["bun-server-bench", "id:background-jobs.simple-status.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:background-jobs", "difficulty:2"]
 [[task.authors]]

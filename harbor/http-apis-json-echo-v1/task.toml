@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/http-apis-json-echo-v1"
+name = "tinycomputerai/bun-server-bench-http-apis-json-echo-v1"
 description = "Build a small Bun HTTP endpoint that accepts a JSON request body and returns it unchanged."
 keywords = ["bun-server-bench", "id:http-apis.json-echo.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:http-apis", "difficulty:1"]
 [[task.authors]]

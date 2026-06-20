@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/concurrency-lock-ordering-deadlock-v1"
+name = "tinycomputerai/bun-server-bench-concurrency-lock-ordering-deadlock-v1"
 description = "Deadlock-free account transfers. Concurrent opposite-direction transfers do not deadlock. Disjoint transfers make progress concurrently. Total balance is conserved."
 keywords = ["bun-server-bench", "id:concurrency.lock-ordering-deadlock.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:databases", "difficulty:5"]
 [[task.authors]]

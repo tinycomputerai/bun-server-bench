@@ -8,7 +8,7 @@ export const RELEASE_ASSET_FILES = {
   patches: "bun-server-bench-patches.jsonl",
 } as const;
 
-export const HF_DATASET_REPO = "tinycomputer/bun-server-bench-trajectories";
+export const HF_DATASET_REPO = "tinycomputerai/bun-server-bench-trajectories";
 
 export function repoRoot(): string {
   return resolve(import.meta.dir, "../..");

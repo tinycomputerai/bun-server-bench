@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/sagas-compensation-rollback-v1"
+name = "tinycomputerai/bun-server-bench-sagas-compensation-rollback-v1"
 description = "Saga compensation rollback. Successful trips commit all steps. Failure compensates completed steps in reverse order. Partial success is never reported as completed."
 keywords = ["bun-server-bench", "id:sagas.compensation-rollback.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:crud-systems", "difficulty:5"]
 [[task.authors]]

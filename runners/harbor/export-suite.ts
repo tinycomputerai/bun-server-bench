@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { discoverTasks } from "../suite/discover-tasks";
 import { pruneStaleHarborExports } from "./prune-stale";
+import { syncDataset } from "./sync-dataset";
 import { writeTasksLock } from "./tasks-lock";
 import { exportTask, sanitizeName } from "./export";
 
@@ -68,6 +69,7 @@ async function main(): Promise<void> {
     }
     const lockPath = writeTasksLock(resolve(process.cwd(), outRoot));
     console.log(`[harbor] wrote tasks lock to ${lockPath}`);
+    syncDataset(outRoot);
   }
 
   console.log(`\n[harbor] exported ${exported}/${taskPaths.length} task(s) to ${outRoot}`);

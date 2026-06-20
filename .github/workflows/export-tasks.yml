@@ -22,6 +22,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          # Full history so `harbor:sync --changed-since <before>` can diff
+          # against the pushed-from commit.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Setup tinycomputer app
@@ -33,6 +36,9 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -40,7 +46,13 @@ jobs:
         run: bun run validate
 
       - name: Sync harbor exports from tasks lock
-        run: bun run harbor:sync --tasks 'tasks/**' --changed-since "${{ github.event.before }}"
+        env:
+          # Empty on workflow_dispatch; an all-zero SHA forces a full re-sync.
+          CHANGED_SINCE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          bun run harbor:sync --tasks 'tasks/**' \
+            --changed-since "${CHANGED_SINCE:-0000000000000000000000000000000000000000}"
 
       - name: Commit and push harbor exports
         run: |

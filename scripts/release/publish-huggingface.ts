@@ -45,9 +45,23 @@ function buildUploadSpecs(tag: string): UploadSpec[] {
   ];
 }
 
-function buildUploadCommand(spec: UploadSpec, tag: string): string[] {
+// Prefer the modern `hf` CLI; fall back to the legacy `huggingface-cli`. Both
+// share the same `upload` interface and read HF_TOKEN from the environment.
+const HF_CLI_CANDIDATES = ["hf", "huggingface-cli"] as const;
+
+function detectHfCli(): string | null {
+  for (const cli of HF_CLI_CANDIDATES) {
+    const check = Bun.spawnSync([cli, "--help"], { stdout: "ignore", stderr: "ignore" });
+    if (check.exitCode === 0) {
+      return cli;
+    }
+  }
+  return null;
+}
+
+function buildUploadCommand(spec: UploadSpec, tag: string, cli: string): string[] {
   return [
-    "huggingface-cli",
+    cli,
     "upload",
     HF_DATASET_REPO,
     spec.localPath,
@@ -59,14 +73,10 @@ function buildUploadCommand(spec: UploadSpec, tag: string): string[] {
   ];
 }
 
-async function ensureHuggingfaceCli(): Promise<void> {
-  const check = Bun.spawnSync(["huggingface-cli", "--help"], {
-    stdout: "ignore",
-    stderr: "ignore",
-  });
-
-  if (check.exitCode === 0) {
-    return;
+function ensureHfCli(): string {
+  const found = detectHfCli();
+  if (found) {
+    return found;
   }
 
   const install = Bun.spawnSync(["python3", "-m", "pip", "install", "--quiet", "huggingface_hub"], {
@@ -75,17 +85,23 @@ async function ensureHuggingfaceCli(): Promise<void> {
   });
 
   if (install.exitCode !== 0) {
-    throw new Error("failed to install huggingface_hub (huggingface-cli)");
+    throw new Error("failed to install huggingface_hub (provides the hf CLI)");
   }
+
+  const installed = detectHfCli();
+  if (!installed) {
+    throw new Error("hf / huggingface-cli not available after installing huggingface_hub");
+  }
+  return installed;
 }
 
-async function uploadFile(spec: UploadSpec, tag: string): Promise<void> {
+async function uploadFile(spec: UploadSpec, tag: string, cli: string): Promise<void> {
   const token = process.env.HF_TOKEN?.trim();
   if (!token) {
     throw new Error("HF_TOKEN is required to publish Hugging Face datasets");
   }
 
-  const command = buildUploadCommand(spec, tag);
+  const command = buildUploadCommand(spec, tag, cli);
   const proc = Bun.spawn(command, {
     cwd: repoRoot(),
     stdout: "inherit",
@@ -98,7 +114,7 @@ async function uploadFile(spec: UploadSpec, tag: string): Promise<void> {
 
   const exitCode = await proc.exited;
   if (exitCode !== 0) {
-    throw new Error(`huggingface-cli upload failed for ${spec.remotePath}`);
+    throw new Error(`${cli} upload failed for ${spec.remotePath}`);
   }
 }
 
@@ -122,19 +138,20 @@ async function main(): Promise<void> {
   }
 
   if (options.dryRun) {
+    const cli = detectHfCli() ?? HF_CLI_CANDIDATES[0];
     console.log("[release:huggingface] dry run — would run:");
     for (const spec of specs) {
       console.log(
-        `  HF_TOKEN=*** huggingface-cli upload ${HF_DATASET_REPO} ${spec.localPath} ${spec.remotePath} --repo-type dataset --commit-message "Release ${options.tag}"`,
+        `  HF_TOKEN=*** ${cli} upload ${HF_DATASET_REPO} ${spec.localPath} ${spec.remotePath} --repo-type dataset --commit-message "Release ${options.tag}"`,
       );
     }
     return;
   }
 
-  await ensureHuggingfaceCli();
+  const cli = ensureHfCli();
 
   for (const spec of specs) {
-    await uploadFile(spec, options.tag);
+    await uploadFile(spec, options.tag, cli);
   }
 
   console.log(`[release:huggingface] published dataset ${HF_DATASET_REPO} for ${options.tag}`);

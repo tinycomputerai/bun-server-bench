@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/websockets-backpressure-ordering-v1"
+name = "tinycomputerai/bun-server-bench-websockets-backpressure-ordering-v1"
 description = "WebSocket backpressure and ordering. Each client receives messages in sequence order. Slow clients get gap markers without blocking fast clients. Per-client queues are bounded."
 keywords = ["bun-server-bench", "id:websockets.backpressure-ordering.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:websockets", "difficulty:5"]
 [[task.authors]]

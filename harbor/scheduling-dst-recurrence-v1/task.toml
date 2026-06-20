@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/scheduling-dst-recurrence-v1"
+name = "tinycomputerai/bun-server-bench-scheduling-dst-recurrence-v1"
 description = "Build a Bun scheduler that expands daily local-time recurrences to UTC instants across DST spring-forward gaps and fall-back overlaps using tz-database semantics."
 keywords = ["bun-server-bench", "id:scheduling.dst-recurrence.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:background-jobs", "difficulty:5"]
 [[task.authors]]

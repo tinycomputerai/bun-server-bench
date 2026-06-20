@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/file-uploads-text-bytes-v1"
+name = "tinycomputerai/bun-server-bench-file-uploads-text-bytes-v1"
 description = "Build a Bun endpoint that accepts text uploads and returns the number of uploaded bytes."
 keywords = ["bun-server-bench", "id:file-uploads.text-bytes.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:file-uploads", "difficulty:1"]
 [[task.authors]]

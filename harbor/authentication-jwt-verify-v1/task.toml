@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/authentication-jwt-verify-v1"
+name = "tinycomputerai/bun-server-bench-authentication-jwt-verify-v1"
 description = "Build a Bun service that verifies HS256 JSON Web Tokens by hand using node:crypto and defends against algorithm-confusion attacks by pinning the accepted algorithm to HS256, rejecting alg:none and alg:HS512 tokens."
 keywords = ["bun-server-bench", "id:authentication.jwt-verify.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:authentication", "difficulty:4"]
 [[task.authors]]

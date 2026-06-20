@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/databases-online-migration-backfill-v1"
+name = "tinycomputerai/bun-server-bench-databases-online-migration-backfill-v1"
 description = "Build a Bun service that migrates records through dual-write, resumable backfill with skip-if-newer concurrency safety, gated cutover, and rollback without data loss."
 keywords = ["bun-server-bench", "id:databases.online-migration-backfill.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:databases", "difficulty:5"]
 [[task.authors]]

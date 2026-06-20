@@ -2,7 +2,7 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-server-bench/crud-systems-memory-notes-v1"
+name = "tinycomputerai/bun-server-bench-crud-systems-memory-notes-v1"
 description = "Build a small Bun API that creates notes in memory and lists them in insertion order."
 keywords = ["bun-server-bench", "id:crud-systems.memory-notes.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:crud-systems", "difficulty:2"]
 [[task.authors]]
