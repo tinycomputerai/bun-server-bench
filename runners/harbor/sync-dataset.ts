@@ -8,13 +8,67 @@
  * `bun run harbor:dataset`.
  */
 
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 export const DATASET_NAME = "tinycomputerai/bun-server-bench";
 export const DATASET_DESCRIPTION =
   "bun-server-bench: a correctness benchmark of 50 production-shaped Bun server engineering tasks for evaluating AI coding agents.";
 export const DATASET_AUTHOR = "tincomputer.ai";
+
+const GITHUB_URL = "https://github.com/tinycomputerai/bun-server-bench";
+const HF_URL = "https://huggingface.co/datasets/tinycomputerai/bun-server-bench-trajectories";
+
+// Rich landing-page README for the published Harbor dataset. `harbor init`
+// writes only a bare title, so we overwrite it on every regeneration.
+const DATASET_README = `# bun-server-bench
+
+A correctness benchmark of **50 production-shaped Bun server engineering tasks**
+for evaluating AI coding agents.
+
+Each task asks an agent to implement a small but realistic Bun backend service —
+HTTP APIs, authentication, SQLite transactions, idempotency, concurrency, rate
+limiting, background jobs, observability, WebSockets, and file uploads. Every
+task is engineered so that a *plausible-but-wrong* implementation passes the
+public tests and fails the hidden ones. The score measures behavioral
+correctness under a contract, not runtime speed — a fast server that returns the
+wrong status code scores zero.
+
+## Run it
+
+\`\`\`sh
+# the whole suite
+harbor run -d ${DATASET_NAME} --agent <your-agent> -e docker
+
+# a single task (oracle = the reference solution)
+harbor run -p ${DATASET_NAME}-databases-optimistic-version-v1 --agent oracle -e docker -y
+\`\`\`
+
+## Scoring
+
+Each task's verifier writes a gate-based reward to \`reward.txt\`:
+
+| reward | meaning |
+| ---: | --- |
+| \`1.0\` | public **and** hidden tests pass |
+| \`0.25\` | public pass, hidden fail (found the visible path, missed the edge cases) |
+| \`0.0\` | public fail, or install / startup / timeout |
+
+A reward of \`0.25\` is the discriminative signal the benchmark is built around.
+
+## Integrity
+
+- Hidden tests are injected only at verification time — never baked into the agent image.
+- Tasks run with **zero runtime dependencies** and **networking disabled**, so the agent must implement the capability rather than import it.
+- Reference solutions are excluded from the agent workspace.
+
+## Links
+
+- Source, task definitions, and docs: ${GITHUB_URL}
+- Trajectory dataset (SFT + patch records): ${HF_URL}
+
+License: Apache-2.0
+`;
 
 const DEFAULT_OUT_ROOT = "harbor";
 
@@ -73,11 +127,15 @@ export function syncDataset(outRoot = DEFAULT_OUT_ROOT): boolean {
     DATASET_AUTHOR,
   ]);
 
+  // Replace the bare title README that `harbor init` writes with the rich
+  // landing-page README shown on the dataset hub page.
+  writeFileSync(datasetReadme, DATASET_README);
+
   // Explicit digest refresh (no-op immediately after init, but guarantees the
   // committed manifest's digests match the packages).
   runHarbor(["sync", datasetToml]);
 
-  console.log(`[harbor] regenerated ${datasetToml} (${DATASET_NAME})`);
+  console.log(`[harbor] regenerated ${datasetToml} + README.md (${DATASET_NAME})`);
   return true;
 }
 

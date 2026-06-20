@@ -18,7 +18,7 @@ export type DatasetCardManifest = {
   };
 };
 
-const BENCHMARK_REPO_URL = "https://github.com/tinycomputer/bun-server-bench";
+const BENCHMARK_REPO_URL = "https://github.com/tinycomputerai/bun-server-bench";
 
 /**
  * Render the Hugging Face dataset card for a release. The card is uploaded to
