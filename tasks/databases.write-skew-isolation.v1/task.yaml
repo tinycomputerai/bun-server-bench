@@ -115,7 +115,7 @@ tests:
       - tests/hidden/oncall-hidden.test.ts
     weight: 0.7
   mutation_policy:
-    seed_env: BUN_BENCH_SEED
+    seed_env: BUN_SERVER_BENCH_SEED
     deterministic: true
 timeouts:
   install_seconds: 120
@@ -186,7 +186,7 @@ provenance:
 reference_solution:
   visibility: private
   path: solutions/reference
-  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  validation_command: BUN_SERVER_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
   expected_score: 100
   notes: Reference implementation for validation.
 known_failure_modes:

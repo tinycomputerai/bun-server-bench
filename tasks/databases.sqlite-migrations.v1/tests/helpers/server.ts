@@ -8,11 +8,11 @@ export type RunningServer = { baseUrl: string; stop: () => Promise<void> };
 const taskRoot = resolve(import.meta.dir, "../..");
 // One database file per test-file module load. Persists across restarts within
 // the same file (so persistence can be tested) but is isolated per suite run.
-const dbDir = mkdtempSync(join(tmpdir(), "bun-bench-migrations-"));
+const dbDir = mkdtempSync(join(tmpdir(), "bun-server-bench-migrations-"));
 const dbPath = join(dbDir, "app.db");
 
 export async function startTaskServer(): Promise<RunningServer> {
-  const appDir = resolve(taskRoot, Bun.env.BUN_BENCH_APP_DIR ?? ".");
+  const appDir = resolve(taskRoot, Bun.env.BUN_SERVER_BENCH_APP_DIR ?? ".");
   const port = await getAvailablePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   const proc = Bun.spawn({

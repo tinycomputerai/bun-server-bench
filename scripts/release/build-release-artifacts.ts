@@ -11,7 +11,7 @@ import {
 } from "./paths";
 
 type Manifest = {
-  name: "bun-bench";
+  name: "bun-server-bench";
   tag: string;
   version: string;
   git_sha: string;
@@ -124,7 +124,7 @@ async function main(): Promise<void> {
   await createTarball(root, tarballPath, TARBALL_INCLUDE_PATHS);
 
   const manifest: Manifest = {
-    name: "bun-bench",
+    name: "bun-server-bench",
     tag: options.tag,
     version: releaseVersionFromTag(options.tag),
     git_sha: resolveGitSha(root),

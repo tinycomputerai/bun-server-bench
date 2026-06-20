@@ -56,7 +56,7 @@ instruction:
   summary: Verify HS256 JWTs manually with node:crypto and pin the algorithm to HS256.
   constraints:
     - The service must listen on the port provided by PORT.
-    - Use the signing secret from JWT_SECRET, defaulting to bun-bench-secret.
+    - Use the signing secret from JWT_SECRET, defaulting to bun-server-bench-secret.
     - Verify HMAC-SHA256 over the base64url header.payload signing input.
     - Return JSON for every response.
   allowed_assumptions:
@@ -98,7 +98,7 @@ environment:
     required:
       PORT: allocated by runner
     optional:
-      JWT_SECRET: bun-bench-secret
+      JWT_SECRET: bun-server-bench-secret
   services: []
 interfaces:
   process:
@@ -124,7 +124,7 @@ tests:
       - tests/hidden/me-hidden.test.ts
     weight: 0.7
   mutation_policy:
-    seed_env: BUN_BENCH_SEED
+    seed_env: BUN_SERVER_BENCH_SEED
     deterministic: true
 timeouts:
   install_seconds: 120
@@ -197,7 +197,7 @@ provenance:
 reference_solution:
   visibility: private
   path: solutions/reference
-  validation_command: BUN_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
+  validation_command: BUN_SERVER_BENCH_APP_DIR=solutions/reference bun test tests/public tests/hidden
   expected_score: 100
   notes: Manual HS256 verifier with algorithm pinning and constant-time signature check.
 known_failure_modes:

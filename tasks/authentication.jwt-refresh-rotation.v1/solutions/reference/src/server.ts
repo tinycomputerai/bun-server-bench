@@ -1,7 +1,7 @@
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 
 const port = Number(Bun.env.PORT ?? 3000);
-const secret = "bun-bench-secret";
+const secret = "bun-server-bench-secret";
 const ACCESS_TTL_SECONDS = 300; // a few minutes
 
 const USERNAME = "alice";

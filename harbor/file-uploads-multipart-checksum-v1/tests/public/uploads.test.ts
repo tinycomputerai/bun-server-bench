@@ -19,7 +19,7 @@ describe("multipart upload with checksum", () => {
 
   test("uploads a small text file and returns the correct sha256", async () => {
     if (!server) throw new Error("server did not start");
-    const content = "hello bun-bench\n";
+    const content = "hello bun-server-bench\n";
     const bytes = new TextEncoder().encode(content);
     const expected = sha256Hex(bytes);
 

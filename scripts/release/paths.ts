@@ -4,11 +4,11 @@ import { releaseVersionFromTag } from "./parse-args";
 export const RELEASE_ASSETS_DIR = "release-assets";
 
 export const RELEASE_ASSET_FILES = {
-  sft: "bun-bench-sft.jsonl",
-  patches: "bun-bench-patches.jsonl",
+  sft: "bun-server-bench-sft.jsonl",
+  patches: "bun-server-bench-patches.jsonl",
 } as const;
 
-export const HF_DATASET_REPO = "tinycomputer/bun-bench-trajectories";
+export const HF_DATASET_REPO = "tinycomputer/bun-server-bench-trajectories";
 
 export function repoRoot(): string {
   return resolve(import.meta.dir, "../..");
@@ -16,8 +16,8 @@ export function repoRoot(): string {
 
 export function exportDatasetPaths(root = repoRoot()) {
   return {
-    sft: join(root, "datasets/sft/bun-bench.jsonl"),
-    patches: join(root, "datasets/patches/bun-bench.jsonl"),
+    sft: join(root, "datasets/sft/bun-server-bench.jsonl"),
+    patches: join(root, "datasets/patches/bun-server-bench.jsonl"),
   };
 }
 
@@ -47,10 +47,10 @@ export function releaseDir(root = repoRoot()): string {
 export function releaseArtifactNames(tag: string) {
   const version = releaseVersionFromTag(tag);
   return {
-    tarball: `bun-bench-${tag}.tar.gz`,
-    sft: `bun-bench-sft-${tag}.jsonl`,
-    patches: `bun-bench-patches-${tag}.jsonl`,
-    manifest: `bun-bench-manifest-${tag}.json`,
+    tarball: `bun-server-bench-${tag}.tar.gz`,
+    sft: `bun-server-bench-sft-${tag}.jsonl`,
+    patches: `bun-server-bench-patches-${tag}.jsonl`,
+    manifest: `bun-server-bench-manifest-${tag}.json`,
     version,
   };
 }

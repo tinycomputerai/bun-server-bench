@@ -1,5 +1,5 @@
 {
-  "name": "bun-bench",
+  "name": "bun-server-bench",
   "private": true,
   "type": "module",
   "devDependencies": {

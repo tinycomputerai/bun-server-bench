@@ -312,7 +312,7 @@ describe("export CLI args", () => {
       "--runs",
       "runs/**",
       "--out",
-      "datasets/sft/bun-bench.jsonl",
+      "datasets/sft/bun-server-bench.jsonl",
       "--allow-public-eval",
       "--allow-private-eval",
     ]);

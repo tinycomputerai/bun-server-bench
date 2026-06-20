@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 const port = Number(Bun.env.PORT ?? 3000);
-const secret = Bun.env.JWT_SECRET ?? "bun-bench-secret";
+const secret = Bun.env.JWT_SECRET ?? "bun-server-bench-secret";
 
 function base64urlDecodeToString(segment: string): string | null {
   // base64url alphabet must not contain +, /, or = padding.

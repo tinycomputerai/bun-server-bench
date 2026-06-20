@@ -9,7 +9,7 @@ export type RunningServer = {
 const taskRoot = resolve(import.meta.dir, "../..");
 
 export async function startTaskServer(): Promise<RunningServer> {
-  const appDir = resolve(taskRoot, Bun.env.BUN_BENCH_APP_DIR ?? ".");
+  const appDir = resolve(taskRoot, Bun.env.BUN_SERVER_BENCH_APP_DIR ?? ".");
   const port = await getAvailablePort();
   const baseUrl = `http://127.0.0.1:${port}`;
 

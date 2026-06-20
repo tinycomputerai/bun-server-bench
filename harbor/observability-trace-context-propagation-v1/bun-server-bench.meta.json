@@ -1,0 +1,91 @@
+{
+  "bun_server_bench_id": "observability.trace-context-propagation.v1",
+  "task_version": "1.0.0",
+  "spec_version": "0.1.0",
+  "title": "W3C trace context propagation",
+  "category": "observability",
+  "difficulty": {
+    "level": 5,
+    "rationale": "Child spans reference immediate parent span ids.",
+    "expected_code_size": {
+      "min_lines": 120,
+      "max_lines": 400
+    },
+    "expected_concepts": [
+      "traceparent",
+      "span-tree",
+      "sampling-consistency",
+      "async-local-context"
+    ]
+  },
+  "tags": [
+    "observability",
+    "bun",
+    "tracing",
+    "traceparent",
+    "async-context"
+  ],
+  "scoring": {
+    "max_score": 100,
+    "gates": [
+      {
+        "name": "installs",
+        "requirement": "install exits with status 0",
+        "on_fail": "zero"
+      },
+      {
+        "name": "starts",
+        "requirement": "readiness check passes",
+        "on_fail": "zero"
+      },
+      {
+        "name": "security_baseline",
+        "requirement": "no hidden test access or network egress",
+        "on_fail": "zero"
+      }
+    ],
+    "weights": {
+      "correctness": 0.6,
+      "edge_cases": 0.25,
+      "performance": 0.05,
+      "security": 0.05,
+      "maintainability": 0.05
+    },
+    "performance": {
+      "metric": "p95_latency_ms",
+      "budget": 200,
+      "floor": 10
+    },
+    "dependency_budget": {
+      "max_runtime_dependencies": 0,
+      "penalty_per_extra_dependency": 1
+    }
+  },
+  "success_criteria": {
+    "must": [
+      "Child spans reference immediate parent span ids.",
+      "Sampling decision is consistent for the whole trace.",
+      "Malformed traceparent is replaced safely."
+    ],
+    "must_not": [
+      "Expose stack traces in HTTP responses."
+    ],
+    "edge_cases": [
+      "Hidden tests cover concurrency, failure injection, and security edge cases."
+    ]
+  },
+  "environment_network": "disabled",
+  "reward_model": {
+    "description": "Harbor reward.txt is computed by the bun-server-bench gate model in tests/test.sh.",
+    "values": {
+      "public_and_hidden_pass": 1,
+      "public_pass_hidden_fail": 0.25,
+      "public_fail": 0
+    },
+    "maps_to_bun_server_bench_score": {
+      "1.0": 100,
+      "0.25": 25,
+      "0.0": 0
+    }
+  }
+}

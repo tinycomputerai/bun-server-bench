@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://tinycomputer.ai/bun-bench/schemas/task.schema.json",
-  "title": "bun-bench task.yaml schema",
+  "$id": "https://tinycomputer.ai/bun-server-bench/schemas/task.schema.json",
+  "title": "bun-server-bench task.yaml schema",
   "type": "object",
   "required": [
     "id",

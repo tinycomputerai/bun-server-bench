@@ -27,11 +27,11 @@ function buildUploadSpecs(tag: string): UploadSpec[] {
     },
     {
       localPath: join(outDir, names.sft),
-      remotePath: "data/sft/bun-bench.jsonl",
+      remotePath: "data/sft/bun-server-bench.jsonl",
     },
     {
       localPath: join(outDir, names.patches),
-      remotePath: "data/patches/bun-bench.jsonl",
+      remotePath: "data/patches/bun-server-bench.jsonl",
     },
     {
       localPath: join(outDir, names.manifest),

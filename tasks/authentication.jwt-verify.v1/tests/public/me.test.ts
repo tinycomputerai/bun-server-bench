@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHmac } from "node:crypto";
 import { startTaskServer, type RunningServer } from "../helpers/server";
 
-const SECRET = "bun-bench-secret";
+const SECRET = "bun-server-bench-secret";
 
 function b64url(input: string | Buffer): string {
   return Buffer.from(input).toString("base64url");

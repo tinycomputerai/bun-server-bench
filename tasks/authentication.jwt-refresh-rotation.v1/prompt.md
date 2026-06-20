@@ -10,7 +10,7 @@ token family.
 - State is kept in memory (no database). There is exactly one credential:
   username `alice`, password `password123`.
 - Access tokens are HS256 JSON Web Tokens signed with HMAC-SHA256 using the
-  secret `bun-bench-secret`, with a short expiry (a few minutes). Each access
+  secret `bun-server-bench-secret`, with a short expiry (a few minutes). Each access
   token's `sub` claim is the username.
 - Refresh tokens are opaque, unguessable random strings (use `node:crypto`).
   Each refresh token belongs to a token **family** created at login. A family

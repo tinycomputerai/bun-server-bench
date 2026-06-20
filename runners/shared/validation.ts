@@ -148,7 +148,7 @@ export async function runValidationLifecycle(input: ValidationInput): Promise<Va
     const hiddenTests = await runShellCommand({
       command: task.tests.hidden.command,
       cwd: taskDir,
-      env: { BUN_BENCH_APP_DIR: workspaceDir },
+      env: { BUN_SERVER_BENCH_APP_DIR: workspaceDir },
       timeoutMs: remainingMs(deadlineMs, task.timeouts.test_seconds * 1000),
       stdoutPath: join(logsDir, "hidden-tests.stdout.log"),
       stderrPath: join(logsDir, "hidden-tests.stderr.log"),

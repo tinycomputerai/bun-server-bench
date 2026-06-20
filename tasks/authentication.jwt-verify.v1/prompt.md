@@ -7,7 +7,7 @@ libraries) and defends against algorithm-confusion attacks.
 
 - Listen on the port provided by `PORT`.
 - The signing secret comes from the environment variable `JWT_SECRET`. When it is
-  not set, default to the literal string `bun-bench-secret`. Verification uses
+  not set, default to the literal string `bun-server-bench-secret`. Verification uses
   HMAC-SHA256 over `base64url(header) + "." + base64url(payload)`.
 - A JWT has three dot-separated, base64url-encoded segments:
   `header.payload.signature`.

@@ -2,9 +2,9 @@ schema_version = "1.3"
 artifacts = []
 
 [task]
-name = "bun-bench/idempotency-dedup-conflict-v1"
+name = "bun-server-bench/idempotency-dedup-conflict-v1"
 description = "Build a Bun HTTP service that creates orders and distinguishes two kinds of conflict: an idempotency-key replay or reuse versus a business-level duplicate reference. Same key plus same body replays, same key plus different body is key reuse, and a different key with an existing reference is a duplicate reference."
-keywords = ["bun-bench", "id:idempotency.dedup-conflict.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:crud-systems", "difficulty:3"]
+keywords = ["bun-server-bench", "id:idempotency.dedup-conflict.v1", "task_version:1.0.0", "spec_version:0.1.0", "category:crud-systems", "difficulty:3"]
 [[task.authors]]
 name = "tincomputer.ai"
 
