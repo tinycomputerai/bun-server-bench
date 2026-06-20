@@ -6,7 +6,7 @@ export const RELEASE_ASSETS_HINT = [
   "  bun run release:stage",
   "  bun run release:upload-staging -- --tag <version>",
   "Then tag the release and run the Release workflow.",
-  "See docs/RELEASING.md.",
+  "See docs/reference/releasing.md.",
 ].join("\n");
 
 export type ReleaseAssetIssue = {

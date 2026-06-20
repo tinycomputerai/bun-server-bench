@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename } from "node:path";
 import type { PatchRecord, SftRecord } from "../../runners/export/types";
 import { formatReleaseAssetIssues, checkReleaseAssets } from "./release-assets";
+import { DATASET_CARD_FILE } from "./dataset-card";
 import { parseReleaseArgs, usage } from "./parse-args";
 import {
   FORBIDDEN_DATASET_MARKERS,
@@ -180,6 +181,7 @@ function main(): void {
   const assets = releaseAssetPaths();
   const artifacts = releaseArtifactNames(options.tag);
   const tarballPath = `${releaseDir()}/${artifacts.tarball}`;
+  const cardPath = `${releaseDir()}/${DATASET_CARD_FILE}`;
 
   const assetIssues = checkReleaseAssets();
   const issues: DatasetVerificationIssue[] = assetIssues.map((issue) => ({
@@ -207,6 +209,14 @@ function main(): void {
       for (const reason of tarballIssues) {
         issues.push({ file: basename(tarballPath), line: 0, reason });
       }
+    }
+
+    if (!existsSync(cardPath)) {
+      issues.push({
+        file: cardPath,
+        line: 0,
+        reason: "Hugging Face dataset card has not been built yet",
+      });
     }
   }
 

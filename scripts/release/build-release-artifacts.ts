@@ -1,6 +1,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { assertReleaseAssets } from "./release-assets";
+import { DATASET_CARD_FILE, renderDatasetCard } from "./dataset-card";
 import { parseReleaseArgs, releaseVersionFromTag, usage } from "./parse-args";
 import {
   releaseArtifactNames,
@@ -145,12 +146,16 @@ async function main(): Promise<void> {
   const manifestPath = join(outDir, names.manifest);
   await Bun.write(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
+  const cardPath = join(outDir, DATASET_CARD_FILE);
+  await Bun.write(cardPath, renderDatasetCard(manifest));
+
   console.log("[release:build] complete");
   console.log(`  output directory: ${outDir}`);
   console.log(`  ${names.tarball}`);
   console.log(`  ${names.sft}`);
   console.log(`  ${names.patches}`);
   console.log(`  ${names.manifest}`);
+  console.log(`  ${DATASET_CARD_FILE} (Hugging Face dataset card)`);
 }
 
 if (import.meta.main) {

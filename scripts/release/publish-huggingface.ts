@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { DATASET_CARD_FILE } from "./dataset-card";
 import { parseReleaseArgs, usage } from "./parse-args";
 import { HF_DATASET_REPO, releaseArtifactNames, releaseDir, repoRoot } from "./paths";
 
@@ -13,6 +14,10 @@ function buildUploadSpecs(tag: string): UploadSpec[] {
   const outDir = releaseDir();
 
   return [
+    {
+      localPath: join(outDir, DATASET_CARD_FILE),
+      remotePath: DATASET_CARD_FILE,
+    },
     {
       localPath: join(outDir, names.sft),
       remotePath: `releases/${tag}/${names.sft}`,
